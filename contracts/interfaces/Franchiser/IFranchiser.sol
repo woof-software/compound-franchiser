@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8;
 
-import {IFranchiserErrors} from "./IFranchiserErrors.sol";
-import {IFranchiserEvents} from "./IFranchiserEvents.sol";
-import {Franchiser} from "../../Franchiser.sol";
+import { IFranchiserErrors } from "./IFranchiserErrors.sol";
+import { IFranchiserEvents } from "./IFranchiserEvents.sol";
+import { Franchiser } from "../../Franchiser.sol";
 
 /// @title Interface for the Franchiser contract.
 interface IFranchiser is IFranchiserErrors, IFranchiserEvents {

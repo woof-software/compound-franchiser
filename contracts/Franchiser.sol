@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.20;
 
-import {IFranchiser} from "./interfaces/Franchiser/IFranchiser.sol";
-import {FranchiserImmutableState} from "./base/FranchiserImmutableState.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IVotingToken} from "./interfaces/IVotingToken.sol";
+import { IFranchiser } from "./interfaces/Franchiser/IFranchiser.sol";
+import { FranchiserImmutableState } from "./base/FranchiserImmutableState.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IVotingToken } from "./interfaces/IVotingToken.sol";
 
 contract Franchiser is IFranchiser, FranchiserImmutableState, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;

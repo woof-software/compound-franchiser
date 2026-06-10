@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8;
 
-import {IFranchiserImmutableState} from "./IFranchiserImmutableState.sol";
-import {FranchiserFactory} from "../FranchiserFactory.sol";
-import {Franchiser} from "../Franchiser.sol";
+import { IFranchiserImmutableState} from "./IFranchiserImmutableState.sol";
+import { FranchiserFactory} from "../FranchiserFactory.sol";
+import { Franchiser} from "../Franchiser.sol";
 
 // import {IVotingToken} from "./IVotingToken.sol";
 

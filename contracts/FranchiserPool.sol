@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.20;
 
-import {IFranchiserPool} from "./interfaces/FranchiserPool/IFranchiserPool.sol";
-import {FranchiserImmutableState} from "./base/FranchiserImmutableState.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IVotingToken} from "./interfaces/IVotingToken.sol";
-import {Franchiser} from "./Franchiser.sol";
+import { IFranchiserPool } from "./interfaces/FranchiserPool/IFranchiserPool.sol";
+import { FranchiserImmutableState } from "./base/FranchiserImmutableState.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IVotingToken } from "./interfaces/IVotingToken.sol";
+import { Franchiser } from "./Franchiser.sol";
 
 /// @notice Manages a pool of idle COMP and distributes it to top-level delegatees via
 ///         Franchiser instances. Deployed and controlled by FranchiserPoolFactory on

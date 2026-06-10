@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8;
 
-import {IFranchiserPoolErrors} from "./IFranchiserPoolErrors.sol";
-import {IFranchiserPoolEvents} from "./IFranchiserPoolEvents.sol";
-import {IFranchiserImmutableState} from "../IFranchiserImmutableState.sol";
-import {Franchiser} from "../../Franchiser.sol";
+import { IFranchiserPoolErrors } from "./IFranchiserPoolErrors.sol";
+import { IFranchiserPoolEvents } from "./IFranchiserPoolEvents.sol";
+import { IFranchiserImmutableState } from "../IFranchiserImmutableState.sol";
+import { Franchiser } from "../../Franchiser.sol";
 
 /// @title Interface for the FranchiserPool contract.
 interface IFranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents, IFranchiserImmutableState {

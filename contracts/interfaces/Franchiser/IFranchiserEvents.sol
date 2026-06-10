@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8;
 
-import {Franchiser} from "../../Franchiser.sol";
+import { Franchiser } from "../../Franchiser.sol";
 
 /// @title Events for the Franchiser contract.
 interface IFranchiserEvents {

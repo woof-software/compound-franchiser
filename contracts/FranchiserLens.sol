@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.20;
 
-import {IFranchiserLens} from "./interfaces/IFranchiserLens.sol";
-import {FranchiserImmutableState} from "./base/FranchiserImmutableState.sol";
-import {FranchiserFactory} from "./FranchiserFactory.sol";
-import {IVotingToken} from "./interfaces/IVotingToken.sol";
-import {Franchiser} from "./Franchiser.sol";
+import { IFranchiserLens } from "./interfaces/IFranchiserLens.sol";
+import { FranchiserImmutableState } from "./base/FranchiserImmutableState.sol";
+import { FranchiserFactory } from "./FranchiserFactory.sol";
+import { IVotingToken } from "./interfaces/IVotingToken.sol";
+import { Franchiser } from "./Franchiser.sol";
 
 contract FranchiserLens is IFranchiserLens, FranchiserImmutableState {
     /// @dev The asserts in the constructor ensure that this is safe to encode as a constant.
