@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.15;
+pragma solidity ^0.8.20;
 
 import {IFranchiser} from "./interfaces/Franchiser/IFranchiser.sol";
 import {FranchiserImmutableState} from "./base/FranchiserImmutableState.sol";
-import {Owned} from "solmate/auth/Owned.sol";
-import {EnumerableSet} from "openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
-import {Address} from "openzeppelin-contracts/contracts/utils/Address.sol";
-import {Clones} from "openzeppelin-contracts/contracts/proxy/Clones.sol";
-import {SafeTransferLib, ERC20} from "solmate/utils/SafeTransferLib.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVotingToken} from "./interfaces/IVotingToken.sol";
 
-contract Franchiser is IFranchiser, FranchiserImmutableState, Owned {
+contract Franchiser is IFranchiser, FranchiserImmutableState, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
-    using Address for address;
     using Clones for address;
-    using SafeTransferLib for ERC20;
+    using SafeERC20 for IERC20;
 
     /// @inheritdoc IFranchiser
     uint96 public constant DECAY_FACTOR = 2;
@@ -35,7 +34,7 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Owned {
         // if a delegator has explicitly been set, return it
         if (_delegator != address(0)) return _delegator;
         // otherwise, look it up from the owner
-        else if (owner != address(0)) return Franchiser(owner).delegatee();
+        else if (owner() != address(0)) return Franchiser(owner()).delegatee();
         // return 0 in the implementation contract
         return address(0);
     }
@@ -53,7 +52,7 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Owned {
 
     constructor(IVotingToken votingToken_)
         FranchiserImmutableState(votingToken_)
-        Owned(address(0))
+        Ownable(msg.sender)
     {
         franchiserImplementation = Franchiser(address(this));
         // this borks the implementation contract as desired,
@@ -73,7 +72,7 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Owned {
         if (delegatee_ == address(0)) revert NoDelegatee();
         if (delegatee != address(0)) revert AlreadyInitialized();
 
-        owner = msg.sender;
+        _transferOwnership(msg.sender);
         // only store the delegator if necessary
         if (delegator_ != address(0)) _delegator = delegator_;
         delegatee = delegatee_;
@@ -125,7 +124,7 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Owned {
             if (_subDelegatees.length() == maximumSubDelegatees)
                 revert CannotExceedMaximumSubDelegatees(maximumSubDelegatees);
             assert(_subDelegatees.add(subDelegatee));
-            if (!address(franchiser).isContract()) {
+            if (address(franchiser).code.length == 0) {
                 // deploy a new contract if necessary
                 address(franchiserImplementation).cloneDeterministic(
                     getSalt(subDelegatee)
@@ -137,7 +136,7 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Owned {
             }
             emit SubDelegateeActivated(subDelegatee);
         }
-        ERC20(address(votingToken)).safeTransfer(address(franchiser), amount);
+        IERC20(address(votingToken)).safeTransfer(address(franchiser), amount);
     }
 
     /// @inheritdoc IFranchiser
@@ -176,7 +175,7 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Owned {
         // calling recall is a no-op if the franchiser doesn't have tokens, so it's fine,
         // but in the very odd case that the franchiser has received voting tokens out of
         // band, this will retrieve them silently, which is also fine
-        else if (address(franchiser).isContract())
+        else if (address(franchiser).code.length > 0)
             franchiser.recall(address(this));
     }
 
@@ -203,7 +202,7 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Owned {
                 );
             }
         }
-        ERC20(address(votingToken)).safeTransfer(
+        IERC20(address(votingToken)).safeTransfer(
             to,
             votingToken.balanceOf(address(this))
         );

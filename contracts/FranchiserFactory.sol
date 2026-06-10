@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.15;
+pragma solidity ^0.8.20;
 
 import {IFranchiserFactory} from "./interfaces/FranchiserFactory/IFranchiserFactory.sol";
 import {FranchiserImmutableState} from "./base/FranchiserImmutableState.sol";
-import {Address} from "openzeppelin-contracts/contracts/utils/Address.sol";
-import {Clones} from "openzeppelin-contracts/contracts/proxy/Clones.sol";
-import {SafeTransferLib, ERC20} from "solmate/utils/SafeTransferLib.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVotingToken} from "./interfaces/IVotingToken.sol";
 import {Franchiser} from "./Franchiser.sol";
 
 contract FranchiserFactory is IFranchiserFactory, FranchiserImmutableState {
-    using Address for address;
     using Clones for address;
-    using SafeTransferLib for ERC20;
+    using SafeERC20 for IERC20;
 
     /// @inheritdoc IFranchiserFactory
     uint96 public constant INITIAL_MAXIMUM_SUBDELEGATEES = 1; // 1 //2**3; // 8
@@ -55,7 +54,7 @@ contract FranchiserFactory is IFranchiserFactory, FranchiserImmutableState {
         returns (Franchiser franchiser)
     {
         franchiser = getFranchiser(msg.sender, delegatee);
-        if (!address(franchiser).isContract()) {
+        if (address(franchiser).code.length == 0) {
             // deploy a new contract if necessary
             address(franchiserImplementation).cloneDeterministic(
                 getSalt(msg.sender, delegatee)
@@ -66,7 +65,7 @@ contract FranchiserFactory is IFranchiserFactory, FranchiserImmutableState {
                 INITIAL_MAXIMUM_SUBDELEGATEES
             );
         }
-        ERC20(address(votingToken)).safeTransferFrom(
+        IERC20(address(votingToken)).safeTransferFrom(
             msg.sender,
             address(franchiser),
             amount
@@ -91,7 +90,7 @@ contract FranchiserFactory is IFranchiserFactory, FranchiserImmutableState {
     /// @inheritdoc IFranchiserFactory
     function recall(address delegatee, address to) public {
         Franchiser franchiser = getFranchiser(msg.sender, delegatee);
-        if (address(franchiser).isContract()) franchiser.recall(to);
+        if (address(franchiser).code.length > 0) franchiser.recall(to);
     }
 
     /// @inheritdoc IFranchiserFactory
