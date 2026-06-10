@@ -89,8 +89,9 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
         emit PoolFunded(pool, amount);
     }
 
-    function transferToPool(address pool, address to, uint256 amount) external onlyGovernance onlyKnownPool(pool) {
-        IERC20(address(votingToken)).safeTransfer(to, amount);
+    /// @inheritdoc IFranchiserPoolFactory
+    function transferToPool(address pool, uint256 amount) external onlyGovernance onlyKnownPool(pool) {
+        IERC20(address(votingToken)).safeTransfer(pool, amount);
 
         emit PoolFunded(pool, amount);
     }

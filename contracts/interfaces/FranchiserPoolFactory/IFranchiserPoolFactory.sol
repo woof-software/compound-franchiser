@@ -42,6 +42,10 @@ interface IFranchiserPoolFactory is
     /// @dev Requires governance to have approved this contract for `amount`.
     function fundPool(address pool, uint256 amount) external;
 
+    /// @notice Transfer `amount` of COMP from factory balance to `pool`.
+    /// @dev Should be used if COMP was transferred to the factory outside of `fundPool`
+    function transferToPool(address pool, uint256 amount) external;
+
     /// @notice Recalls all delegatees of `pool` and transfers all COMP to `recipient`.
     function haltPool(address pool, address recipient) external;
 
