@@ -76,6 +76,15 @@ function fundPool(address pool, uint256 amount) external
 Transfers additional COMP from governance to an existing pool.
 
 Requires governance to have approved this contract for `amount`.
+### transferToPool (0xd7efa129)
+
+```solidity
+function transferToPool(address pool, uint256 amount) external
+```
+
+Transfer `amount` of COMP from factory balance to `pool`.
+
+Should be used if COMP was transferred to the factory outside of `fundPool`
 ### haltPool (0xc902112d)
 
 ```solidity
