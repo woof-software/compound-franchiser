@@ -36,3 +36,6 @@
 
 #Security reports
 /security-reports/
+
+# VSCode settings
+.vscode/
