@@ -40,10 +40,6 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
         governance = governance_;
     }
 
-    function _requireKnownPool(address pool) private view {
-        if (!isKnownPool[pool]) revert UnknownPool(pool);
-    }
-
     // -------------------------------------------------------------------------
     // Governance functions
     // -------------------------------------------------------------------------
