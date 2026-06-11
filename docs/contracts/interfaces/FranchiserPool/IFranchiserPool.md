@@ -114,6 +114,13 @@ function reassign(address from, address to, uint256 amount) external
 ```
 
 Recalls all COMP from `from` and delegates `amount` to `to` atomically.
+### emergencyFreezeAndRecallPool (0x622957a1)
+
+```solidity
+function emergencyFreezeAndRecallPool() external
+```
+
+Recalls all delegatees and freezes coordinator actions for `freezePeriod` seconds.
 ### emergencyRecallDelegatees (0xf9cfd787)
 
 ```solidity
@@ -127,7 +134,7 @@ Recalls COMP from the specified delegatees back to the pool.
 function emergencyFreezePool() external
 ```
 
-Recalls all delegatees and freezes coordinator actions for `freezePeriod` seconds.
+Freezes coordinator actions for `freezePeriod` seconds without recalling delegatees.
 ### halt (0x364db0fc)
 
 ```solidity

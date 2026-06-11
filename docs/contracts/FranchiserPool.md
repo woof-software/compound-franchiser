@@ -180,13 +180,20 @@ function emergencyRecallDelegatees(
 ```
 
 Recalls COMP from the specified delegatees back to the pool.
+### emergencyFreezeAndRecallPool (0x622957a1)
+
+```solidity
+function emergencyFreezeAndRecallPool() external onlyGuardian
+```
+
+Recalls all delegatees and freezes coordinator actions for `freezePeriod` seconds.
 ### emergencyFreezePool (0x65a964ad)
 
 ```solidity
 function emergencyFreezePool() external onlyGuardian
 ```
 
-Recalls all delegatees and freezes coordinator actions for `freezePeriod` seconds.
+Freezes coordinator actions for `freezePeriod` seconds without recalling delegatees.
 ### halt (0x364db0fc)
 
 ```solidity

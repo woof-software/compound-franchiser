@@ -41,3 +41,11 @@ Parameters:
 | Name | Type    | Description                    |
 | :--- | :------ | :----------------------------- |
 | pool | address | The unrecognized pool address. |
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+Thrown when a required address argument is the zero address.

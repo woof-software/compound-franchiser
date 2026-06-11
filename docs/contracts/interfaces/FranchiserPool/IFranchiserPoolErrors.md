@@ -104,3 +104,18 @@ Parameters:
 | :------- | :------ | :--------------------------------- |
 | provided | uint256 | The provided freeze period.        |
 | minimum  | uint256 | The minimum allowed freeze period. |
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+Thrown when a required address argument is the zero address.
+### ZeroAmount
+
+```solidity
+error ZeroAmount()
+```
+
+Thrown when a required amount argument is zero.
