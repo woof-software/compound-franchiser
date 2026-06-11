@@ -9,7 +9,7 @@ import { Franchiser } from "./Franchiser.sol";
 
 contract FranchiserLens is IFranchiserLens, FranchiserImmutableState {
     /// @dev The asserts in the constructor ensure that this is safe to encode as a constant.
-    uint256 private constant MAXIMUM_NESTING_DEPTH = 5; // log2(8) + 2
+    uint256 private constant MAXIMUM_NESTING_DEPTH = 2; // log2(1) + 2
 
     /// @inheritdoc IFranchiserLens
     FranchiserFactory public immutable franchiserFactory;
@@ -18,7 +18,7 @@ contract FranchiserLens is IFranchiserLens, FranchiserImmutableState {
         FranchiserImmutableState(votingToken_)
     {
         franchiserFactory = franchiserFactory_;
-        assert(franchiserFactory.INITIAL_MAXIMUM_SUBDELEGATEES() == 8);
+        assert(franchiserFactory.INITIAL_MAXIMUM_SUBDELEGATEES() == 1);
         assert(
             franchiserFactory.franchiserImplementation().DECAY_FACTOR() == 2
         );
