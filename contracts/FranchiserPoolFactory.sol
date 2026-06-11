@@ -36,6 +36,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
     constructor(IVotingToken votingToken_, address governance_)
         FranchiserImmutableState(votingToken_)
     {
+        if (governance_ == address(0)) revert ZeroAddress();
         governance = governance_;
     }
 

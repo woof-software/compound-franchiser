@@ -11,4 +11,7 @@ interface IFranchiserPoolFactoryErrors {
     /// @notice Thrown when an address is not a pool created by this factory.
     /// @param pool The unrecognized pool address.
     error UnknownPool(address pool);
+
+    /// @notice Thrown when a required address argument is the zero address.
+    error ZeroAddress();
 }

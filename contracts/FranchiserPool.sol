@@ -75,14 +75,18 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
         uint256 maxDelegatees_,
         uint256 freezePeriod_
     ) FranchiserImmutableState(votingToken_) {
+        if (coordinator_ == address(0)) revert ZeroAddress();
+        if (guardian_ == address(0)) revert ZeroAddress();
         if (freezePeriod_ < MINIMUM_FREEZE_PERIOD)
             revert FreezePeriodTooShort(freezePeriod_, MINIMUM_FREEZE_PERIOD);
+
         factory = msg.sender;
         franchiserImplementation = new Franchiser(votingToken_);
         coordinator = coordinator_;
         guardian = guardian_;
         maxDelegatees = maxDelegatees_;
         freezePeriod = freezePeriod_;
+
         emit CoordinatorSet(address(0), coordinator_);
         emit GuardianSet(address(0), guardian_);
         emit MaxDelegateesSet(0, maxDelegatees_);
@@ -113,6 +117,7 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
     // -------------------------------------------------------------------------
 
     function _delegate(address delegatee, uint256 amount) private {
+        if (amount == 0) revert ZeroAmount();
         Franchiser franchiser = getFranchiser(delegatee);
 
         if (!_activeDelegatees.contains(delegatee)) {
@@ -202,6 +207,7 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
     /// @inheritdoc IFranchiserPool
     function emergencyFreezeAndRecallPool() external onlyGuardian {
         _recallAll();
+
         uint256 until = block.timestamp + freezePeriod;
         frozenUntil = until;
 
@@ -222,7 +228,9 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
 
     /// @inheritdoc IFranchiserPool
     function halt(address recipient) external onlyFactory {
+        if (recipient == address(0)) revert ZeroAddress();
         _recallAll();
+
         uint256 balance = votingToken.balanceOf(address(this));
         if (balance > 0) {
             IERC20(address(votingToken)).safeTransfer(recipient, balance);
@@ -233,6 +241,7 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
 
     /// @inheritdoc IFranchiserPool
     function setCoordinator(address coordinator_) external onlyFactory {
+        if (coordinator_ == address(0)) revert ZeroAddress();
         emit CoordinatorSet(coordinator, coordinator_);
 
         coordinator = coordinator_;
@@ -240,6 +249,7 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
 
     /// @inheritdoc IFranchiserPool
     function setGuardian(address guardian_) external onlyFactory {
+        if (guardian_ == address(0)) revert ZeroAddress();
         emit GuardianSet(guardian, guardian_);
 
         guardian = guardian_;
