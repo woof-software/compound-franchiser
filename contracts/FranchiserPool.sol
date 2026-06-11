@@ -200,8 +200,16 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
     }
 
     /// @inheritdoc IFranchiserPool
-    function emergencyFreezePool() external onlyGuardian {
+    function emergencyFreezeAndRecallPool() external onlyGuardian {
         _recallAll();
+        uint256 until = block.timestamp + freezePeriod;
+        frozenUntil = until;
+
+        emit EmergencyFreeze(until);
+    }
+
+    /// @inheritdoc IFranchiserPool
+    function emergencyFreezePool() external onlyGuardian {
         uint256 until = block.timestamp + freezePeriod;
         frozenUntil = until;
 

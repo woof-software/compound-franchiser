@@ -61,10 +61,13 @@ interface IFranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents, IFran
     // Guardian functions (never blocked by freeze)
     // -------------------------------------------------------------------------
 
+    /// @notice Recalls all delegatees and freezes coordinator actions for `freezePeriod` seconds.
+    function emergencyFreezeAndRecallPool() external;
+
     /// @notice Recalls COMP from the specified delegatees back to the pool.
     function emergencyRecallDelegatees(address[] calldata delegatees) external;
 
-    /// @notice Recalls all delegatees and freezes coordinator actions for `freezePeriod` seconds.
+    /// @notice Freezes coordinator actions for `freezePeriod` seconds without recalling delegatees.
     function emergencyFreezePool() external;
 
     // -------------------------------------------------------------------------
