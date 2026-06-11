@@ -75,7 +75,7 @@ const restoreDelegated = async () => await networkHelpers.loadFixture(delegatedF
 describe("FranchiserPool", function () {
     describe("deployment", function () {
         it("reverts if freeze period is below minimum", async function () {
-            const { governance, coordinator, guardian, token } = await restore();
+            const { governance, coordinator, guardian, token, pool } = await restore();
 
             const poolFactory = await ethers.deployContract(
                 "FranchiserPoolFactory",
@@ -90,12 +90,7 @@ describe("FranchiserPool", function () {
                     FREEZE_PERIOD - 1, // too short
                     0n
                 )
-            ).to.be.revertedWithCustomError(
-                await ethers.getContractAt("FranchiserPool", ethers.ZeroAddress).catch(() =>
-                    ethers.deployContract("MockVotingToken")
-                ),
-                "FreezePeriodTooShort"
-            );
+            ).to.be.revertedWithCustomError(pool, "FreezePeriodTooShort");
         });
 
         it("stores factory, coordinator, guardian, maxDelegatees, freezePeriod", async function () {
@@ -342,6 +337,37 @@ describe("FranchiserPool", function () {
                 pool.connect(coordinator).recall(delegatee.address)
             ).to.be.revertedWithCustomError(pool, "PoolFrozen");
         });
+
+        it("recalling a non-active delegatee does not revert and emits no DelegateeDeactivated", async function () {
+            const { pool, coordinator, other } = await restore();
+
+            await expect(
+                pool.connect(coordinator).recall(other.address)
+            ).to.not.emit(pool, "DelegateeDeactivated");
+
+            expect(await pool.activeDelegatees()).to.not.include(other.address);
+        });
+
+        it("re-delegating to a previously recalled delegatee reactivates them", async function () {
+            const { pool, coordinator, delegatee, token } = await restoreDelegated();
+
+            await pool.connect(coordinator).recall(delegatee.address);
+            expect(await pool.activeDelegatees()).to.not.include(delegatee.address);
+
+            const reAmount = ethers.parseEther("300");
+
+            await expect(
+                pool.connect(coordinator).delegate(delegatee.address, reAmount)
+            )
+                .to.emit(pool, "DelegateeActivated")
+                .withArgs(delegatee.address);
+
+            expect(await pool.activeDelegatees()).to.include(delegatee.address);
+
+            const franchiserAddr = await pool.getFranchiser(delegatee.address);
+            expect(await token.balanceOf(franchiserAddr)).to.equal(reAmount);
+            expect(await token.getCurrentVotes(delegatee.address)).to.equal(reAmount);
+        });
     });
 
     describe("reassign", function () {
@@ -391,6 +417,122 @@ describe("FranchiserPool", function () {
                     .reassign(delegatee.address, newDelegatee.address, 100n)
             ).to.be.revertedWithCustomError(pool, "PoolFrozen");
         });
+
+        it("adds tokens to already-active delegatee without re-emitting DelegateeActivated", async function () {
+            const {
+                pool,
+                coordinator,
+                delegatee,
+                token,
+                DELEGATE_AMOUNT
+            } = await restoreDelegated();
+            const [, , , , , secondDelegatee] = await ethers.getSigners();
+
+            // Make secondDelegatee active too
+            await pool.connect(coordinator).delegate(secondDelegatee.address, ethers.parseEther("200"));
+
+            const franchiserAddr = await pool.getFranchiser(delegatee.address);
+            const additionalAmount = ethers.parseEther("100");
+
+            // Reassign from secondDelegatee to the already-active delegatee
+            await expect(
+                pool.connect(coordinator).reassign(secondDelegatee.address, delegatee.address, additionalAmount)
+            ).to.not.emit(pool, "DelegateeActivated");
+
+            expect(await token.balanceOf(franchiserAddr)).to.equal(DELEGATE_AMOUNT + additionalAmount);
+            expect(await pool.activeDelegatees()).to.include(delegatee.address);
+            expect(await pool.activeDelegatees()).to.not.include(secondDelegatee.address);
+        });
+    });
+
+    describe("sub-delegation from pool franchisers", function () {
+        it("delegatee can sub-delegate once (INITIAL_MAXIMUM_SUBDELEGATEES = 1)", async function () {
+            const { pool, delegatee, token, DELEGATE_AMOUNT } = await restoreDelegated();
+            const [, , , , , subDelegatee] = await ethers.getSigners();
+
+            const franchiserAddr = await pool.getFranchiser(delegatee.address);
+            const franchiser = await ethers.getContractAt("Franchiser", franchiserAddr);
+
+            const subAmount = DELEGATE_AMOUNT / 2n;
+
+            await expect(
+                franchiser.connect(delegatee).subDelegate(subDelegatee.address, subAmount)
+            )
+                .to.emit(franchiser, "SubDelegateeActivated")
+                .withArgs(subDelegatee.address);
+
+            expect(await token.getCurrentVotes(subDelegatee.address)).to.equal(subAmount);
+
+            const subFranchiserAddr = await franchiser.getFranchiser(subDelegatee.address);
+            expect(await token.balanceOf(subFranchiserAddr)).to.equal(subAmount);
+        });
+
+        it("sub-delegatee cannot further sub-delegate (maximumSubDelegatees decays to 0)", async function () {
+            const { pool, delegatee, DELEGATE_AMOUNT } = await restoreDelegated();
+            const [, , , , , subDelegatee, deepDelegatee] = await ethers.getSigners();
+
+            const franchiserAddr = await pool.getFranchiser(delegatee.address);
+            const franchiser = await ethers.getContractAt("Franchiser", franchiserAddr);
+
+            await franchiser.connect(delegatee).subDelegate(subDelegatee.address, DELEGATE_AMOUNT / 2n);
+
+            const subFranchiserAddr = await franchiser.getFranchiser(subDelegatee.address);
+            const subFranchiser = await ethers.getContractAt("Franchiser", subFranchiserAddr);
+
+            await expect(
+                subFranchiser.connect(subDelegatee).subDelegate(deepDelegatee.address, 100n)
+            )
+                .to.be.revertedWithCustomError(subFranchiser, "CannotExceedMaximumSubDelegatees")
+                .withArgs(0n);
+        });
+
+        it("pool recall with active sub-delegatee returns all tokens to pool", async function () {
+            const { pool, coordinator, delegatee, token, DELEGATE_AMOUNT } = await restoreDelegated();
+            const [, , , , , subDelegatee] = await ethers.getSigners();
+
+            const franchiserAddr = await pool.getFranchiser(delegatee.address);
+            const franchiser = await ethers.getContractAt("Franchiser", franchiserAddr);
+            const subAmount = DELEGATE_AMOUNT / 2n;
+            await franchiser.connect(delegatee).subDelegate(subDelegatee.address, subAmount);
+
+            const subFranchiserAddr = await franchiser.getFranchiser(subDelegatee.address);
+
+            await pool.connect(coordinator).recall(delegatee.address);
+
+            expect(await token.balanceOf(franchiserAddr)).to.equal(0n);
+            expect(await token.balanceOf(subFranchiserAddr)).to.equal(0n);
+            expect(await token.getCurrentVotes(delegatee.address)).to.equal(0n);
+            expect(await token.getCurrentVotes(subDelegatee.address)).to.equal(0n);
+        });
+
+        it("haltPool with active sub-delegatees returns all tokens to recipient", async function () {
+            const {
+                pool,
+                poolFactory,
+                governance,
+                delegatee,
+                other,
+                token,
+                AMOUNT,
+                DELEGATE_AMOUNT
+            } = await restoreDelegated();
+
+            const [, , , , , subDelegatee] = await ethers.getSigners();
+
+            const franchiserAddr = await pool.getFranchiser(delegatee.address);
+            const franchiser = await ethers.getContractAt("Franchiser", franchiserAddr);
+            const subAmount = DELEGATE_AMOUNT / 4n;
+            await franchiser.connect(delegatee).subDelegate(subDelegatee.address, subAmount);
+
+            const subFranchiserAddr = await franchiser.getFranchiser(subDelegatee.address);
+
+            await poolFactory.connect(governance).haltPool(await pool.getAddress(), other.address);
+
+            expect(await token.balanceOf(franchiserAddr)).to.equal(0n);
+            expect(await token.balanceOf(subFranchiserAddr)).to.equal(0n);
+            expect(await token.balanceOf(await pool.getAddress())).to.equal(0n);
+            expect(await token.balanceOf(other.address)).to.equal(AMOUNT);
+        });
     });
 
     describe("emergencyRecallDelegatees", function () {
@@ -425,6 +567,24 @@ describe("FranchiserPool", function () {
                 [franchiserAddr, pool],
                 [-DELEGATE_AMOUNT, DELEGATE_AMOUNT]
             );
+        });
+
+        it("emits DelegateeDeactivated for each recalled active delegatee", async function () {
+            const { pool, guardian, delegatee } = await restoreDelegated();
+
+            await expect(
+                pool.connect(guardian).emergencyRecallDelegatees([delegatee.address])
+            )
+                .to.emit(pool, "DelegateeDeactivated")
+                .withArgs(delegatee.address);
+        });
+
+        it("does not emit DelegateeDeactivated for non-active addresses", async function () {
+            const { pool, guardian, other } = await restoreDelegated();
+
+            await expect(
+                pool.connect(guardian).emergencyRecallDelegatees([other.address])
+            ).to.not.emit(pool, "DelegateeDeactivated");
         });
 
         it("works even when pool is frozen", async function () {
@@ -486,12 +646,16 @@ describe("FranchiserPool", function () {
             expect(frozenUntil).to.be.gte(BigInt(latestBlock) + BigInt(FREEZE_PERIOD));
         });
 
-        it("emits EmergencyFreeze event", async function () {
+        it("emits EmergencyFreeze event with correct frozenUntil", async function () {
             const { pool, guardian } = await restore();
+
+            const latestTime = BigInt(await time.latest());
 
             await expect(
                 pool.connect(guardian).emergencyFreezeAndRecallPool()
-            ).to.emit(pool, "EmergencyFreeze");
+            )
+                .to.emit(pool, "EmergencyFreeze")
+                .withArgs((until: bigint) => until >= latestTime + BigInt(FREEZE_PERIOD));
         });
 
         it("blocks coordinator actions while frozen", async function () {
@@ -527,10 +691,14 @@ describe("FranchiserPool", function () {
             expect(frozenUntil).to.be.gte(BigInt(latestBlock) + BigInt(FREEZE_PERIOD));
         });
 
-        it("emits EmergencyFreeze event", async function () {
+        it("emits EmergencyFreeze event with correct frozenUntil", async function () {
             const { pool, guardian } = await restore();
 
-            await expect(pool.connect(guardian).emergencyFreezePool()).to.emit(pool, "EmergencyFreeze");
+            const latestTime = BigInt(await time.latest());
+
+            await expect(pool.connect(guardian).emergencyFreezePool())
+                .to.emit(pool, "EmergencyFreeze")
+                .withArgs((until: bigint) => until >= latestTime + BigInt(FREEZE_PERIOD));
         });
 
         it("blocks coordinator actions while frozen", async function () {
@@ -554,6 +722,18 @@ describe("FranchiserPool", function () {
             await pool
                 .connect(coordinator)
                 .delegate(delegatee.address, ethers.parseEther("100"));
+        });
+
+        it("calling freeze again extends the freeze window", async function () {
+            const { pool, guardian } = await restore();
+
+            await pool.connect(guardian).emergencyFreezePool();
+            const frozenUntilFirst = await pool.frozenUntil();
+
+            await pool.connect(guardian).emergencyFreezePool();
+            const frozenUntilSecond = await pool.frozenUntil();
+
+            expect(frozenUntilSecond).to.be.gt(frozenUntilFirst);
         });
     });
 

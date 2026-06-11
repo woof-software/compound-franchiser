@@ -192,6 +192,38 @@ describe("FranchiserPoolFactory", function () {
             expect(await token.balanceOf(poolAddr)).to.equal(AMOUNT);
         });
 
+        it("reverts if coordinator is zero address", async function () {
+            const { factory, governance, guardian, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPool(
+                        ethers.ZeroAddress,
+                        guardian.address,
+                        5n,
+                        FREEZE_PERIOD,
+                        0n
+                    )
+            ).to.be.revertedWithCustomError(pool, "ZeroAddress");
+        });
+
+        it("reverts if guardian is zero address", async function () {
+            const { factory, governance, coordinator, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPool(
+                        coordinator.address,
+                        ethers.ZeroAddress,
+                        5n,
+                        FREEZE_PERIOD,
+                        0n
+                    )
+            ).to.be.revertedWithCustomError(pool, "ZeroAddress");
+        });
+
         it("does not transfer tokens when amount is 0", async function () {
             const {
                 factory,
@@ -204,7 +236,13 @@ describe("FranchiserPoolFactory", function () {
             const receipt = await (
                 await factory
                     .connect(governance)
-                    .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 0n)
+                    .createPool(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        FREEZE_PERIOD,
+                        0n
+                    )
             ).wait();
             const event = receipt?.logs.find(
                 (log) =>
@@ -243,16 +281,94 @@ describe("FranchiserPoolFactory", function () {
         });
 
         it("transfers tokens from governance to pool and emits PoolFunded", async function () {
-            const { factory, governance, pool } = await restorePool();
+            const { factory, governance, pool, token } = await restorePool();
 
             const fundAmount = ethers.parseEther("500");
             const poolAddr = await pool.getAddress();
+
+            const poolBalanceBefore = await token.balanceOf(poolAddr);
+            const govBalanceBefore = await token.balanceOf(governance.address);
 
             await expect(
                 factory.connect(governance).fundPool(poolAddr, fundAmount)
             )
                 .to.emit(factory, "PoolFunded")
                 .withArgs(poolAddr, fundAmount);
+
+            expect(await token.balanceOf(poolAddr)).to.equal(poolBalanceBefore + fundAmount);
+            expect(await token.balanceOf(governance.address)).to.equal(govBalanceBefore - fundAmount);
+        });
+    });
+
+    describe("transferToPool", function () {
+        it("reverts if caller is not governance", async function () {
+            const { factory, other, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(other)
+                    .transferToPool(await pool.getAddress(), ethers.parseEther("100"))
+            )
+                .to.be.revertedWithCustomError(factory, "NotGovernance")
+                .withArgs(other.address, await factory.governance());
+        });
+
+        it("reverts if pool is unknown", async function () {
+            const { factory, governance, other } = await restore();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .transferToPool(other.address, ethers.parseEther("100"))
+            )
+                .to.be.revertedWithCustomError(factory, "UnknownPool")
+                .withArgs(other.address);
+        });
+
+        it("transfers tokens from factory own balance to pool and emits PoolFunded", async function () {
+            const { factory, governance, pool, token } = await restorePool();
+
+            const transferAmount = ethers.parseEther("500");
+            const factoryAddr = await factory.getAddress();
+            const poolAddr = await pool.getAddress();
+
+            // Seed the factory contract itself with tokens (safeTransfer, not safeTransferFrom)
+            await token.mint(factoryAddr, transferAmount);
+
+            const poolBalanceBefore = await token.balanceOf(poolAddr);
+
+            await expect(
+                factory.connect(governance).transferToPool(poolAddr, transferAmount)
+            )
+                .to.emit(factory, "PoolFunded")
+                .withArgs(poolAddr, transferAmount);
+
+            expect(await token.balanceOf(poolAddr)).to.equal(poolBalanceBefore + transferAmount);
+            expect(await token.balanceOf(factoryAddr)).to.equal(0n);
+        });
+
+        it("pool can delegate tokens received via direct transfer", async function () {
+            const {
+                factory,
+                governance,
+                pool,
+                token,
+                coordinator,
+                other
+            } = await restorePool();
+
+            const transferAmount = ethers.parseEther("500");
+            const factoryAddr = await factory.getAddress();
+            const poolAddr = await pool.getAddress();
+
+            await token.mint(factoryAddr, transferAmount);
+            await factory.connect(governance).transferToPool(poolAddr, transferAmount);
+
+            // Coordinator should be able to delegate the freshly-transferred tokens
+            await pool.connect(coordinator).delegate(other.address, transferAmount);
+
+            expect(await token.getCurrentVotes(other.address)).to.equal(transferAmount);
+            expect(await token.balanceOf(await pool.getFranchiser(other.address))).to.equal(transferAmount);
         });
     });
 
@@ -279,6 +395,16 @@ describe("FranchiserPoolFactory", function () {
             )
                 .to.be.revertedWithCustomError(factory, "UnknownPool")
                 .withArgs(other.address);
+        });
+
+        it("reverts if recipient is zero address", async function () {
+            const { factory, governance, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .haltPool(await pool.getAddress(), ethers.ZeroAddress)
+            ).to.be.revertedWithCustomError(pool, "ZeroAddress");
         });
 
         it("drains pool balance to recipient and emits PoolHalted", async function () {
@@ -344,6 +470,16 @@ describe("FranchiserPoolFactory", function () {
 
             expect(await pool.coordinator()).to.equal(other.address);
         });
+
+        it("reverts if new coordinator is zero address", async function () {
+            const { factory, governance, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .setCoordinator(await pool.getAddress(), ethers.ZeroAddress)
+            ).to.be.revertedWithCustomError(pool, "ZeroAddress");
+        });
     });
 
     describe("setGuardian", function () {
@@ -383,6 +519,16 @@ describe("FranchiserPoolFactory", function () {
                 .withArgs(poolAddr, other.address);
 
             expect(await pool.guardian()).to.equal(other.address);
+        });
+
+        it("reverts if new guardian is zero address", async function () {
+            const { factory, governance, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .setGuardian(await pool.getAddress(), ethers.ZeroAddress)
+            ).to.be.revertedWithCustomError(pool, "ZeroAddress");
         });
     });
 
@@ -502,6 +648,18 @@ describe("FranchiserPoolFactory", function () {
             )
                 .to.be.revertedWithCustomError(factory, "UnknownPool")
                 .withArgs(other.address);
+        });
+
+        it("succeeds and emits PoolUnfrozen even when pool is not currently frozen", async function () {
+            const { factory, governance, pool } = await restorePool();
+
+            expect(await pool.frozenUntil()).to.equal(0n);
+
+            await expect(
+                factory.connect(governance).unfreezePool(await pool.getAddress())
+            ).to.emit(pool, "PoolUnfrozen");
+
+            expect(await pool.frozenUntil()).to.equal(0n);
         });
 
         it("unfreezes pool and emits PoolUnfrozen", async function () {
