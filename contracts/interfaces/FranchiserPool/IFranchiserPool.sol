@@ -14,6 +14,9 @@ interface IFranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents, IFran
     /// @notice The minimum duration for an emergency freeze.
     function MINIMUM_FREEZE_PERIOD() external view returns (uint256);
 
+    /// @notice The maximum duration for an emergency freeze.
+    function MAXIMUM_FREEZE_PERIOD() external view returns (uint256);
+
     /// @notice The Franchiser implementation used to clone top-level Franchiser contracts.
     function franchiserImplementation() external view returns (Franchiser);
 

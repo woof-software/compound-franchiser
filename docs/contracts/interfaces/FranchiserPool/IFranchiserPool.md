@@ -25,6 +25,13 @@ function MINIMUM_FREEZE_PERIOD() external view returns (uint256)
 ```
 
 The minimum duration for an emergency freeze.
+### MAXIMUM_FREEZE_PERIOD (0xa27bee2c)
+
+```solidity
+function MAXIMUM_FREEZE_PERIOD() external view returns (uint256)
+```
+
+The maximum duration for an emergency freeze.
 ### franchiserImplementation (0xc61bdcd2)
 
 ```solidity

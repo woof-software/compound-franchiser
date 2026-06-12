@@ -105,6 +105,22 @@ Parameters:
 | provided | uint256 | The provided freeze period.        |
 | minimum  | uint256 | The minimum allowed freeze period. |
 
+### FreezePeriodTooLong
+
+```solidity
+error FreezePeriodTooLong(uint256 provided, uint256 maximum)
+```
+
+Thrown when a freeze period longer than the enforced maximum is provided.
+
+
+Parameters:
+
+| Name     | Type    | Description                        |
+| :------- | :------ | :--------------------------------- |
+| provided | uint256 | The provided freeze period.        |
+| maximum  | uint256 | The maximum allowed freeze period. |
+
 ### ZeroAddress
 
 ```solidity

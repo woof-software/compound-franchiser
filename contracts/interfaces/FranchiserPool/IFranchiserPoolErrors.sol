@@ -31,6 +31,11 @@ interface IFranchiserPoolErrors {
     /// @param minimum The minimum allowed freeze period.
     error FreezePeriodTooShort(uint256 provided, uint256 minimum);
 
+    /// @notice Thrown when a freeze period longer than the enforced maximum is provided.
+    /// @param provided The provided freeze period.
+    /// @param maximum The maximum allowed freeze period.
+    error FreezePeriodTooLong(uint256 provided, uint256 maximum);
+
     /// @notice Thrown when a required address argument is the zero address.
     error ZeroAddress();
 

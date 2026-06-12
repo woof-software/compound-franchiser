@@ -28,6 +28,13 @@ uint256 constant MINIMUM_FREEZE_PERIOD = 10 days
 ```
 
 
+### MAXIMUM_FREEZE_PERIOD (0xa27bee2c)
+
+```solidity
+uint256 constant MAXIMUM_FREEZE_PERIOD = 30 days
+```
+
+
 ## State variables info
 
 ### franchiserImplementation (0xc61bdcd2)

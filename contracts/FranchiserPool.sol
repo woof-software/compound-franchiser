@@ -26,6 +26,9 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
     uint256 public constant MINIMUM_FREEZE_PERIOD = 10 days;
 
     /// @inheritdoc IFranchiserPool
+    uint256 public constant MAXIMUM_FREEZE_PERIOD = 30 days;
+
+    /// @inheritdoc IFranchiserPool
     Franchiser public immutable franchiserImplementation;
 
     /// @inheritdoc IFranchiserPool
@@ -79,6 +82,8 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
         if (guardian_ == address(0)) revert ZeroAddress();
         if (freezePeriod_ < MINIMUM_FREEZE_PERIOD)
             revert FreezePeriodTooShort(freezePeriod_, MINIMUM_FREEZE_PERIOD);
+        if (freezePeriod_ > MAXIMUM_FREEZE_PERIOD)
+            revert FreezePeriodTooLong(freezePeriod_, MAXIMUM_FREEZE_PERIOD);
 
         factory = msg.sender;
         franchiserImplementation = new Franchiser(votingToken_);
@@ -266,6 +271,9 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
     function setFreezePeriod(uint256 freezePeriod_) external onlyFactory {
         if (freezePeriod_ < MINIMUM_FREEZE_PERIOD)
             revert FreezePeriodTooShort(freezePeriod_, MINIMUM_FREEZE_PERIOD);
+
+        if (freezePeriod_ > MAXIMUM_FREEZE_PERIOD)
+            revert FreezePeriodTooLong(freezePeriod_, MAXIMUM_FREEZE_PERIOD);
 
         emit FreezePeriodSet(freezePeriod, freezePeriod_);
         freezePeriod = freezePeriod_;

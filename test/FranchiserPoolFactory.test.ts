@@ -5,6 +5,7 @@ import { EventLog } from "ethers";
 const { ethers, networkHelpers } = await network.create();
 
 const FREEZE_PERIOD = 10 * 24 * 3600; // 10 days in seconds
+const MAXIMUM_FREEZE_PERIOD = 30 * 24 * 3600; // 30 days in seconds
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,23 @@ describe("FranchiserPoolFactory", function () {
                         0n
                     )
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooShort");
+        });
+
+        it("reverts if freeze period is above maximum", async function () {
+            // FreezePeriodTooLong is a FranchiserPool error — use a pool instance for ABI lookup
+            const { factory, governance, coordinator, guardian, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPool(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        MAXIMUM_FREEZE_PERIOD + 1,
+                        0n
+                    )
+            ).to.be.revertedWithCustomError(pool, "FreezePeriodTooLong");
         });
 
         it("deploys a new pool and registers it as known", async function () {
@@ -611,6 +629,19 @@ describe("FranchiserPoolFactory", function () {
                         BigInt(FREEZE_PERIOD - 1)
                     )
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooShort");
+        });
+
+        it("reverts if new freeze period is above maximum", async function () {
+            const { factory, governance, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .setFreezePeriod(
+                        await pool.getAddress(),
+                        BigInt(MAXIMUM_FREEZE_PERIOD + 1)
+                    )
+            ).to.be.revertedWithCustomError(pool, "FreezePeriodTooLong");
         });
 
         it("updates pool freeze period and emits FreezePeriodUpdated", async function () {
