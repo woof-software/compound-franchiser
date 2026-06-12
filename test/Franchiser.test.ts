@@ -55,6 +55,16 @@ describe("Franchiser", function () {
     });
 
     describe("initialize", function () {
+        it("reverts with NoDelegatee when delegatee_ is zero address", async function () {
+            const { franchiser } = await restore();
+
+            // NoDelegatee is checked before AlreadyInitialized, so this hits line 72
+            // even on an already-initialized franchiser
+            await expect(
+                franchiser["initialize(address,uint96)"](ethers.ZeroAddress, 0n)
+            ).to.be.revertedWithCustomError(franchiser, "NoDelegatee");
+        });
+
         it("reverts with AlreadyInitialized on second call", async function () {
             const { franchiser, delegatee } = await restore();
 
@@ -115,6 +125,20 @@ describe("Franchiser", function () {
         it("returns the explicit delegator set at initialization", async function () {
             const { franchiser, owner } = await restore();
             expect(await franchiser.delegator()).to.equal(owner.address);
+        });
+
+        it("returns zero address for an uninitialized clone", async function () {
+            const { factory } = await restore();
+            const implAddr = await factory.franchiserImplementation();
+            const implHex = implAddr.slice(2).toLowerCase();
+            // EIP-1167 minimal proxy bytecode pointing at the implementation
+            const proxyBytecode = `0x3d602d80600a3d3981f3363d3d373d3d3d363d73${implHex}5af43d82803e903d91602b57fd5bf3`;
+            const [signer] = await ethers.getSigners();
+            const tx = await signer.sendTransaction({ data: proxyBytecode });
+            const receipt = await tx.wait();
+            const uninitClone = await ethers.getContractAt("Franchiser", receipt!.contractAddress!);
+            // Both _delegator and owner() are address(0) → falls through to return address(0)
+            expect(await uninitClone.delegator()).to.equal(ethers.ZeroAddress);
         });
 
         it("sub-franchiser delegator is derived from parent franchiser's delegatee", async function () {
@@ -365,6 +389,24 @@ describe("Franchiser", function () {
 
             // Should not revert, just does nothing
             await franchiser.connect(delegatee).unSubDelegate(other.address);
+        });
+
+        it("recovers tokens sent out-of-band to an already-unsubdelegated franchiser", async function () {
+            const { franchiser, delegatee, subDelegatee, token, AMOUNT } = await networkHelpers.loadFixture(subDelegatedFixture);
+
+            // Remove subDelegatee from the active set (franchiser contract stays deployed)
+            await franchiser.connect(delegatee).unSubDelegate(subDelegatee.address);
+
+            const subFranchiserAddr = await franchiser.getFranchiser(subDelegatee.address);
+            const outOfBandAmount = ethers.parseEther("100");
+
+            // Send tokens directly to the sub-franchiser (out-of-band)
+            await token.mint(subFranchiserAddr, outOfBandAmount);
+            expect(await token.balanceOf(subFranchiserAddr)).to.equal(outOfBandAmount);
+
+            // Second unSubDelegate: not in active set, but contract exists → line 179
+            await franchiser.connect(delegatee).unSubDelegate(subDelegatee.address);
+            expect(await token.balanceOf(subFranchiserAddr)).to.equal(0n);
         });
     });
 
