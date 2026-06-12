@@ -191,8 +191,21 @@ Deployment uses [Hardhat Ignition](https://hardhat.org/ignition/docs/getting-sta
 
 ### Deploy to mainnet
 
-WIP
+```bash
+# Deploy FranchiserFactory with the address of the voting token (e.g. COMP for a Compound deployment)
+pnpm hardhat ignition deploy ignition/modules/FranchiserFactory.ts \
+      --network mainnet \
+      --deployment-id franchiser-factory \
+      --parameters '{"FranchiserFactory":{"votingToken":"0x..."}}'
+```
 
+```bash
+# Deploy FranchiserPoolFactory with the address of the voting token and governance (e.g. COMP for a Compound deployment)
+pnpm hardhat ignition deploy ignition/modules/FranchiserPoolFactory.ts \
+      --network mainnet \
+      --deployment-id franchiser-pool-factory \
+      --parameters '{"FranchiserPoolFactory":{"votingToken":"0x...","governance":"0x..."}}'
+```
 ---
 
 ## Contract Documentation
