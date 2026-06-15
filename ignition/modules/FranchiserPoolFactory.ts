@@ -26,4 +26,3 @@ export default buildModule("FranchiserPoolFactory", (m) => {
 
     return { factory };
 });
- 
