@@ -264,6 +264,8 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
 
     /// @inheritdoc IFranchiserPool
     function setMaxDelegatees(uint256 maxDelegatees_) external onlyFactory {
+        if (maxDelegatees_ == 0) revert ZeroAmount();
+
         emit MaxDelegateesSet(maxDelegatees, maxDelegatees_);
 
         maxDelegatees = maxDelegatees_;

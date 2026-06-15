@@ -921,6 +921,14 @@ describe("FranchiserPool", function () {
                 .withArgs(other.address, await pool.factory());
         });
 
+        it("reverts with ZeroAmount when maxDelegatees_ is 0", async function () {
+            const { pool, poolFactory, governance } = await restore();
+
+            await expect(
+                poolFactory.connect(governance).setMaxDelegatees(await pool.getAddress(), 0n)
+            ).to.be.revertedWithCustomError(pool, "ZeroAmount");
+        });
+
         it("updates maxDelegatees and emits MaxDelegateesSet", async function () {
             const {
                 pool,
