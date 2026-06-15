@@ -16,7 +16,7 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
  *   pnpm hardhat ignition deploy ignition/modules/FranchiserPoolFactory.ts \
       --network mainnet \
       --deployment-id franchiser-pool-factory \
-      --parameters '{"FranchiserPoolFactory":{"votingToken":"0xc00e94Cb662C3520282E6f5717214004A7f26888","governance":"0x309a862bbC1A00e45506cB8A802D1ff10004c8C0"}}'
+      --parameters '{"FranchiserPoolFactory":{"votingToken":"0xc00e94Cb662C3520282E6f5717214004A7f26888","governance":"0x6d903f6003cca6255d85cca4d3b5e5146dc33925"}}'
  */
 export default buildModule("FranchiserPoolFactory", (m) => {
     const votingToken = m.getParameter<string>("votingToken");
