@@ -23,6 +23,8 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
     /// @inheritdoc IFranchiserPoolFactory
     mapping(address => bool) public isKnownPool;
 
+    address[] internal _pools;
+
     modifier onlyGovernance() {
         if (msg.sender != governance) revert NotGovernance(msg.sender, governance);
         _;
@@ -60,6 +62,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
             freezePeriod_
         );
         isKnownPool[address(pool)] = true;
+        _pools.push(address(pool));
 
         if (amount > 0) {
             IERC20(address(votingToken)).safeTransferFrom(
@@ -77,6 +80,11 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
             freezePeriod_,
             amount
         );
+    }
+
+    /// @inheritdoc IFranchiserPoolFactory
+    function getAllPools() external view returns (address[] memory) {
+        return _pools;
     }
 
     /// @inheritdoc IFranchiserPoolFactory

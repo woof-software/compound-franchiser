@@ -21,6 +21,9 @@ interface IFranchiserPoolFactory is
     /// @notice Returns true if `pool` was deployed by this factory.
     function isKnownPool(address pool) external view returns (bool);
 
+    /// @notice Returns the list of all pools deployed by this factory.
+    function getAllPools() external view returns (address[] memory);
+
     /// @notice Deploys a new FranchiserPool and optionally seeds it with COMP.
     /// @dev Requires governance to have approved this contract for `amount`.
     ///      Reverts if `freezePeriod` is below `MINIMUM_FREEZE_PERIOD`.

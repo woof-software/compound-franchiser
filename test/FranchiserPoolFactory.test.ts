@@ -160,6 +160,43 @@ describe("FranchiserPoolFactory", function () {
             const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
 
             expect(await factory.isKnownPool(poolAddr)).to.be.true;
+            expect(await factory.getAllPools()).to.include(poolAddr);
+        });
+
+        it("deploys several pools with different parameters", async function () {
+            const { factory, governance, coordinator, guardian } = await restore();
+
+            const params = [
+                [coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 0n],
+                [coordinator.address, guardian.address, 10n, FREEZE_PERIOD * 2, ethers.parseEther("100")],
+                [coordinator.address, guardian.address, 3n, FREEZE_PERIOD * 3 / 2, ethers.parseEther("50")],
+            ];
+
+            const poolAddresses: string[] = [];
+            for (const [coordAddr, guardAddr, maxDel, freezePer, initAmt] of params) {
+                const tx = await factory
+                    .connect(governance)
+                    .createPool(
+                        coordAddr as string,
+                        guardAddr as string,
+                        maxDel as bigint,
+                        freezePer as bigint,
+                        initAmt as bigint
+                    );
+                const receipt = await tx.wait();
+                const event = receipt?.logs.find(
+                    (log) =>
+                        log.topics[0] ===
+                        factory.interface.getEvent("PoolCreated").topicHash
+                );
+                const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
+
+                expect(await factory.isKnownPool(poolAddr)).to.be.true;
+                expect(await factory.getAllPools()).to.include(poolAddr);
+                poolAddresses.push(poolAddr);
+            }
+
+            expect(await factory.getAllPools()).to.deep.equal(poolAddresses);
         });
 
         it("emits PoolCreated with coordinator, guardian, and pool parameters", async function () {
