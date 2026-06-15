@@ -46,6 +46,32 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
     // Governance functions
     // -------------------------------------------------------------------------
 
+    function _createPool(
+        address coordinator_,
+        address guardian_,
+        uint256 maxDelegatees_,
+        uint256 freezePeriod_
+    ) internal returns (FranchiserPool pool) {
+        pool = new FranchiserPool(
+            votingToken,
+            coordinator_,
+            guardian_,
+            maxDelegatees_,
+            freezePeriod_
+        );
+
+        isKnownPool[address(pool)] = true;
+        _pools.push(address(pool));
+
+        emit PoolCreated(
+            address(pool),
+            coordinator_,
+            guardian_,
+            maxDelegatees_,
+            freezePeriod_
+        );
+    }
+
     /// @inheritdoc IFranchiserPoolFactory
     function createPool(
         address coordinator_,
@@ -54,15 +80,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
         uint256 freezePeriod_,
         uint256 amount
     ) external onlyGovernance returns (FranchiserPool pool) {
-        pool = new FranchiserPool(
-            votingToken,
-            coordinator_,
-            guardian_,
-            maxDelegatees_,
-            freezePeriod_
-        );
-        isKnownPool[address(pool)] = true;
-        _pools.push(address(pool));
+        pool = _createPool(coordinator_, guardian_, maxDelegatees_, freezePeriod_);
 
         if (amount > 0) {
             IERC20(address(votingToken)).safeTransferFrom(
@@ -70,16 +88,46 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
                 address(pool),
                 amount
             );
+
+            emit PoolFunded(address(pool), amount);
+        }
+    }
+
+    /// @inheritdoc IFranchiserPoolFactory
+    function createPoolAndFund(
+        address coordinator_,
+        address guardian_,
+        uint256 maxDelegatees_,
+        uint256 freezePeriod_,
+        address[] calldata delegatees,
+        uint256[] calldata amounts
+    ) external onlyGovernance returns (FranchiserPool pool) {
+        if (delegatees.length != amounts.length)
+            revert ArrayLengthMismatch();
+        if (delegatees.length > maxDelegatees_)
+            revert MaxDelegateesExceeded(delegatees.length, maxDelegatees_);
+
+        uint256 totalAmount = 0;
+        for (uint256 i = 0; i < delegatees.length; i++) {
+            if (amounts[i] == 0) revert ZeroAmount();
+            totalAmount += amounts[i];
         }
 
-        emit PoolCreated(
-            address(pool),
-            coordinator_,
-            guardian_,
-            maxDelegatees_,
-            freezePeriod_,
-            amount
-        );
+        pool = _createPool(coordinator_, guardian_, maxDelegatees_, freezePeriod_);
+
+        if (totalAmount > 0) {
+            IERC20(address(votingToken)).safeTransferFrom(
+                msg.sender,
+                address(pool),
+                totalAmount
+            );
+
+            emit PoolFunded(address(pool), totalAmount);
+
+            for (uint256 i = 0; i < delegatees.length; i++) {
+                FranchiserPool(address(pool)).delegate(delegatees[i], amounts[i]);
+            }
+        }
     }
 
     /// @inheritdoc IFranchiserPoolFactory

@@ -41,6 +41,25 @@ interface IFranchiserPoolFactory is
         uint256 amount
     ) external returns (FranchiserPool pool);
 
+    /// @notice Deploys a new FranchiserPool and funds initial delegatees in a single transaction.
+    /// @dev Requires governance to have approved this contract for `amount`.
+    ///      Reverts if `freezePeriod` is below `MINIMUM_FREEZE_PERIOD`.
+    /// @param coordinator_ The initial coordinator address.
+    /// @param guardian_ The initial guardian address.
+    /// @param maxDelegatees_ The maximum number of simultaneous top-level delegatees.
+    /// @param freezePeriod_ The initial emergency freeze duration (>= MINIMUM_FREEZE_PERIOD).
+    /// @param delegatees The initial delegatees to fund.
+    /// @param amounts The initial amounts of COMP to transfer from governance to each delegatee.
+    /// @return pool The newly deployed FranchiserPool.
+    function createPoolAndFund(
+        address coordinator_,
+        address guardian_,
+        uint256 maxDelegatees_,
+        uint256 freezePeriod_,
+        address[] calldata delegatees,
+        uint256[] calldata amounts
+    ) external returns (FranchiserPool pool);
+
     /// @notice Transfers additional COMP from governance to an existing pool.
     /// @dev Requires governance to have approved this contract for `amount`.
     function fundPool(address pool, uint256 amount) external;

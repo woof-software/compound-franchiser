@@ -9,8 +9,7 @@ interface IFranchiserPoolFactoryEvents {
         address indexed coordinator,
         address indexed guardian,
         uint256 maxDelegatees,
-        uint256 freezePeriod,
-        uint256 initialAmount
+        uint256 freezePeriod
     );
 
     /// @notice Emitted when additional COMP is transferred to a pool.

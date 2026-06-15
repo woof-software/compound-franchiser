@@ -14,4 +14,15 @@ interface IFranchiserPoolFactoryErrors {
 
     /// @notice Thrown when a required address argument is the zero address.
     error ZeroAddress();
+
+    /// @notice Thrown when array arguments have mismatched lengths.
+    error ArrayLengthMismatch();
+
+    /// @notice Thrown when a required amount argument is zero.
+    error ZeroAmount();
+
+    /// @notice Thrown when the delegatees array exceeds the pool's maximum delegatee cap.
+    /// @param count The number of delegatees provided.
+    /// @param maximum The maximum number of delegatees allowed.
+    error MaxDelegateesExceeded(uint256 count, uint256 maximum);
 }

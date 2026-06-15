@@ -219,7 +219,6 @@ describe("FranchiserPoolFactory", function () {
             expect(parsed?.args[2]).to.equal(guardian.address);    // guardian
             expect(parsed?.args[3]).to.equal(5n);                  // maxDelegatees
             expect(parsed?.args[4]).to.equal(BigInt(FREEZE_PERIOD)); // freezePeriod
-            expect(parsed?.args[5]).to.equal(0n);                  // initialAmount
         });
 
         it("transfers initial tokens from governance to pool when amount > 0", async function () {
@@ -307,6 +306,192 @@ describe("FranchiserPoolFactory", function () {
             const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
 
             expect(await token.balanceOf(poolAddr)).to.equal(0n);
+        });
+    });
+
+    describe("createPoolAndFund", function () {
+        it("reverts if caller is not governance", async function () {
+            const { factory, other, coordinator, guardian } = await restore();
+
+            await expect(
+                factory
+                    .connect(other)
+                    .createPoolAndFund(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        FREEZE_PERIOD,
+                        [],
+                        []
+                    )
+            )
+                .to.be.revertedWithCustomError(factory, "NotGovernance")
+                .withArgs(other.address, await factory.governance());
+        });
+
+        it("reverts if delegatees and amounts arrays have different lengths", async function () {
+            const { factory, governance, coordinator, guardian } = await restore();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPoolAndFund(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        FREEZE_PERIOD,
+                        [coordinator.address],
+                        []
+                    )
+            ).to.be.revertedWithCustomError(factory, "ArrayLengthMismatch");
+        });
+
+        it("reverts with MaxDelegateesExceeded when delegatees.length exceeds maxDelegatees_", async function () {
+            const { factory, governance, coordinator, guardian, other } = await restore();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPoolAndFund(
+                        coordinator.address,
+                        guardian.address,
+                        1n,
+                        FREEZE_PERIOD,
+                        [coordinator.address, other.address],
+                        [ethers.parseEther("100"), ethers.parseEther("100")]
+                    )
+            )
+                .to.be.revertedWithCustomError(factory, "MaxDelegateesExceeded")
+                .withArgs(2n, 1n);
+        });
+
+        it("reverts if freeze period is below minimum", async function () {
+            const { factory, governance, coordinator, guardian, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPoolAndFund(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        FREEZE_PERIOD - 1,
+                        [],
+                        []
+                    )
+            ).to.be.revertedWithCustomError(pool, "FreezePeriodTooShort");
+        });
+
+        it("reverts if freeze period is above maximum", async function () {
+            const { factory, governance, coordinator, guardian, pool } = await restorePool();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPoolAndFund(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        MAXIMUM_FREEZE_PERIOD + 1,
+                        [],
+                        []
+                    )
+            ).to.be.revertedWithCustomError(pool, "FreezePeriodTooLong");
+        });
+
+        it("creates and registers pool with empty delegatees array", async function () {
+            const { factory, governance, coordinator, guardian } = await restore();
+
+            const tx = await factory
+                .connect(governance)
+                .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, [], []);
+            const receipt = await tx.wait();
+            const event = receipt?.logs.find(
+                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
+            );
+            const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
+
+            expect(await factory.isKnownPool(poolAddr)).to.be.true;
+            expect(await factory.getAllPools()).to.include(poolAddr);
+        });
+
+        it("reverts with ZeroAmount if any individual amount is zero", async function () {
+            const { factory, governance, coordinator, guardian, other } = await restore();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPoolAndFund(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        FREEZE_PERIOD,
+                        [other.address],
+                        [0n]
+                    )
+            ).to.be.revertedWithCustomError(factory, "ZeroAmount");
+        });
+
+        it("emits PoolCreated with correct pool parameters", async function () {
+            const { factory, governance, coordinator, guardian } = await restore();
+
+            const receipt = await (
+                await factory
+                    .connect(governance)
+                    .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, [], [])
+            ).wait();
+
+            const event = receipt?.logs.find(
+                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
+            );
+            const parsed = factory.interface.parseLog(event as unknown as EventLog);
+
+            expect(parsed?.args[1]).to.equal(coordinator.address);
+            expect(parsed?.args[2]).to.equal(guardian.address);
+            expect(parsed?.args[3]).to.equal(5n);
+            expect(parsed?.args[4]).to.equal(BigInt(FREEZE_PERIOD));
+        });
+
+        it("transfers total amount from governance to pool and emits PoolFunded", async function () {
+            const { factory, governance, coordinator, guardian, other, AMOUNT } = await restore();
+
+            const delegatees = [other.address];
+            const amounts = [AMOUNT];
+
+            const poolAddr = await factory
+                .connect(governance)
+                .createPoolAndFund
+                .staticCall(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, delegatees, amounts);
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, delegatees, amounts)
+            )
+                .to.emit(factory, "PoolFunded")
+                .withArgs(poolAddr, AMOUNT);
+        });
+
+        it("delegates to each delegatee via the pool", async function () {
+            const { factory, governance, coordinator, guardian, other, token, AMOUNT } = await restore();
+
+            const amount1 = AMOUNT / 3n;
+            const amount2 = AMOUNT - amount1;
+            const delegatees = [other.address, guardian.address];
+            const amounts = [amount1, amount2];
+
+            const tx = await factory
+                .connect(governance)
+                .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, delegatees, amounts);
+            const receipt = await tx.wait();
+            const event = receipt?.logs.find(
+                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
+            );
+            const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
+            const pool = await ethers.getContractAt("FranchiserPool", poolAddr);
+
+            expect(await token.balanceOf(await pool.getFranchiser(other.address))).to.equal(amount1);
+            expect(await token.balanceOf(await pool.getFranchiser(guardian.address))).to.equal(amount2);
         });
     });
 

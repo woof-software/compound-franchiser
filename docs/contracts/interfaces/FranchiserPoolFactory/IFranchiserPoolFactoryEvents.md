@@ -14,7 +14,7 @@ interface IFranchiserPoolFactoryEvents
 ### PoolCreated
 
 ```solidity
-event PoolCreated(address indexed pool, address indexed coordinator, address indexed guardian, uint256 maxDelegatees, uint256 freezePeriod, uint256 initialAmount)
+event PoolCreated(address indexed pool, address indexed coordinator, address indexed guardian, uint256 maxDelegatees, uint256 freezePeriod)
 ```
 
 Emitted when a new FranchiserPool is created.

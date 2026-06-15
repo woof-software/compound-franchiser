@@ -172,9 +172,11 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
     /// @inheritdoc IFranchiserPool
     function delegate(address delegatee, uint256 amount)
         external
-        onlyCoordinator
         whenNotFrozen
     {
+        if(msg.sender != coordinator && msg.sender != factory)
+            revert NotCoordinator(msg.sender, coordinator);
+
         _delegate(delegatee, amount);
     }
 

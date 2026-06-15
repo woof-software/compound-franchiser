@@ -150,10 +150,7 @@ The contract may or may not be deployed yet.
 ### delegate (0x026e402b)
 
 ```solidity
-function delegate(
-    address delegatee,
-    uint256 amount
-) external onlyCoordinator whenNotFrozen
+function delegate(address delegatee, uint256 amount) external whenNotFrozen
 ```
 
 Delegates `amount` of COMP from the pool to `delegatee`.

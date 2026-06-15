@@ -99,6 +99,43 @@ Return values:
 | :--- | :---------------------- | :--------------------------------- |
 | pool | contract FranchiserPool | The newly deployed FranchiserPool. |
 
+### createPoolAndFund (0xdc3f1cf2)
+
+```solidity
+function createPoolAndFund(
+    address coordinator_,
+    address guardian_,
+    uint256 maxDelegatees_,
+    uint256 freezePeriod_,
+    address[] calldata delegatees,
+    uint256[] calldata amounts
+) external onlyGovernance returns (FranchiserPool pool)
+```
+
+Deploys a new FranchiserPool and funds initial delegatees in a single transaction.
+
+Requires governance to have approved this contract for `amount`.
+Reverts if `freezePeriod` is below `MINIMUM_FREEZE_PERIOD`.
+
+
+Parameters:
+
+| Name           | Type      | Description                                                                 |
+| :------------- | :-------- | :-------------------------------------------------------------------------- |
+| coordinator_   | address   | The initial coordinator address.                                            |
+| guardian_      | address   | The initial guardian address.                                               |
+| maxDelegatees_ | uint256   | The maximum number of simultaneous top-level delegatees.                    |
+| freezePeriod_  | uint256   | The initial emergency freeze duration (>= MINIMUM_FREEZE_PERIOD).           |
+| delegatees     | address[] | The initial delegatees to fund.                                             |
+| amounts        | uint256[] | The initial amounts of COMP to transfer from governance to each delegatee.  |
+
+
+Return values:
+
+| Name | Type                    | Description                        |
+| :--- | :---------------------- | :--------------------------------- |
+| pool | contract FranchiserPool | The newly deployed FranchiserPool. |
+
 ### getAllPools (0xd88ff1f4)
 
 ```solidity

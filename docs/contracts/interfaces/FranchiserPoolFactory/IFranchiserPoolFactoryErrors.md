@@ -49,3 +49,32 @@ error ZeroAddress()
 ```
 
 Thrown when a required address argument is the zero address.
+### ArrayLengthMismatch
+
+```solidity
+error ArrayLengthMismatch()
+```
+
+Thrown when array arguments have mismatched lengths.
+### ZeroAmount
+
+```solidity
+error ZeroAmount()
+```
+
+Thrown when a required amount argument is zero.
+### MaxDelegateesExceeded
+
+```solidity
+error MaxDelegateesExceeded(uint256 count, uint256 maximum)
+```
+
+Thrown when the delegatees array exceeds the pool's maximum delegatee cap.
+
+
+Parameters:
+
+| Name    | Type    | Description                               |
+| :------ | :------ | :---------------------------------------- |
+| count   | uint256 | The number of delegatees provided.        |
+| maximum | uint256 | The maximum number of delegatees allowed. |
