@@ -32,6 +32,13 @@ function isKnownPool(address pool) external view returns (bool)
 ```
 
 Returns true if `pool` was deployed by this factory.
+### getAllPools (0xd88ff1f4)
+
+```solidity
+function getAllPools() external view returns (address[] memory)
+```
+
+Returns the list of all pools deployed by this factory.
 ### createPool (0x85ac165a)
 
 ```solidity

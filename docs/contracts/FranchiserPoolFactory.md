@@ -99,6 +99,13 @@ Return values:
 | :--- | :---------------------- | :--------------------------------- |
 | pool | contract FranchiserPool | The newly deployed FranchiserPool. |
 
+### getAllPools (0xd88ff1f4)
+
+```solidity
+function getAllPools() external view returns (address[] memory)
+```
+
+Returns the list of all pools deployed by this factory.
 ### fundPool (0x2bfd5146)
 
 ```solidity
