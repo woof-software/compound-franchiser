@@ -66,7 +66,7 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
     {
         votingToken = votingToken_;
         franchiserImplementation = Franchiser(address(this));
-        // this borks the implementation contract as desired,
+        // this sets the implementation contract as desired,
         // new instances should be cloned.
         delegatee = address(1);
     }

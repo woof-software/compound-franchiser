@@ -163,7 +163,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
 
     /// @notice Fully recalls one delegatee's COMP (including sub-delegatee subtree) back to the pool.
     function recall(address delegatee) external onlyCoordinator whenNotFrozen {
-        _recallDelegatee(delegatee);
+        _recallDelegate(delegatee);
     }
 
     /// @notice Recalls all COMP from `from` and delegates `amount` to `to` atomically.
@@ -187,7 +187,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     {
         unchecked {
             for (uint256 i = 0; i < delegatees.length; i++) {
-                _recallDelegatee(delegatees[i]);
+                _recallDelegate(delegatees[i]);
             }
         }
     }
