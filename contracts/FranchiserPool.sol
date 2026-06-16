@@ -101,7 +101,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     /// @param maxDelegatees_ The maximum number of simultaneous top-level delegatees.
     /// @param freezePeriod_ The initial emergency freeze duration (>= MINIMUM_FREEZE_PERIOD).
     constructor(
-        IVotingToken votingToken_,
+        IERC20 votingToken_,
         address coordinator_,
         address guardian_,
         uint256 maxDelegatees_,
@@ -121,7 +121,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
             revert FreezePeriodTooLong(freezePeriod_, MAXIMUM_FREEZE_PERIOD);
 
         factory = msg.sender;
-        franchiserImplementation = new Franchiser(votingToken_);
+        franchiserImplementation = new Franchiser(IVotingToken(address(votingToken_)));
         votingToken = votingToken_;
         coordinator = coordinator_;
         guardian = guardian_;

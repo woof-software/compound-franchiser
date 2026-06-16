@@ -5,7 +5,6 @@ import { IFranchiserPoolFactoryErrors } from "./interfaces/FranchiserPoolFactory
 import { IFranchiserPoolFactoryEvents } from "./interfaces/FranchiserPoolFactory/IFranchiserPoolFactoryEvents.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IVotingToken } from "./interfaces/IVotingToken.sol";
 import { FranchiserPool } from "./FranchiserPool.sol";
 
 /**
@@ -45,13 +44,9 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         _;
     }
 
-    constructor(IVotingToken votingToken_, address governance_)
-    {
-        if (governance_ == address(0)) revert ZeroAddress();
-        governance = governance_;
-    }
     /// @notice The constructor sets the `votingToken`.
     /// @param votingToken_ The `votingToken` of the contract.
+    constructor(IERC20 votingToken_) {
         if (address(votingToken_) == address(0)) revert ZeroAddress();
 
         votingToken = votingToken_;
@@ -95,11 +90,11 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         pool = _createPool(coordinator_, guardian_, maxDelegatees_, freezePeriod_);
 
         if (amount > 0) {
-            IERC20(address(votingToken)).safeTransferFrom(
-                msg.sender,
-                address(pool),
-                amount
-            );
+        votingToken.safeTransferFrom(
+            msg.sender,
+            address(pool),
+            amount
+        );
 
             emit PoolFunded(address(pool), amount);
         }
@@ -159,8 +154,8 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @notice Transfers additional COMP from governance to an existing pool.
     /// @dev Requires governance to have approved this contract for `amount`.
     function fundPool(address pool, uint256 amount) external onlyGovernance onlyKnownPool(pool) {
-        IERC20(address(votingToken)).safeTransferFrom(msg.sender, pool, amount);
         if (amount == 0) revert ZeroAmount();
+        votingToken.safeTransferFrom(msg.sender, pool, amount);
 
         emit PoolFunded(pool, amount);
     }
@@ -168,8 +163,8 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @notice Transfer `amount` of COMP from factory balance to `pool`.
     /// @dev Should be used if COMP was transferred to the factory outside of `fundPool`
     function transferToPool(address pool, uint256 amount) external onlyGovernance onlyKnownPool(pool) {
-        IERC20(address(votingToken)).safeTransfer(pool, amount);
         if (amount == 0) revert ZeroAmount();
+        votingToken.safeTransfer(pool, amount);
 
         emit PoolFunded(pool, amount);
     }
