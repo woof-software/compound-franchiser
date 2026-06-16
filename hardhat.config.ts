@@ -30,7 +30,10 @@ export default defineConfig({
     networks: {
         hardhatMainnet: {
             type: "edr-simulated",
-            chainType: "l1"
+            chainType: "l1",
+            forking: {
+                url: configVariable("MAINNET_RPC_URL"),
+            }
         },
         hardhatOp: {
             type: "edr-simulated",
