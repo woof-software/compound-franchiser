@@ -141,6 +141,7 @@ Parameters:
 | maxDelegatees_ | uint256   | The maximum number of simultaneous top-level delegatees.                    |
 | freezePeriod_  | uint256   | The initial emergency freeze duration.                                      |
 | delegatees     | address[] | The initial delegatees to fund.                                             |
+| totalAmount    | uint256   | The total initial COMP amount to transfer from governance to the pool.      |
 | amounts        | uint256[] | The initial amounts of COMP to transfer from governance to each delegatee.  |
 
 
