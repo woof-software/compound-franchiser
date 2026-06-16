@@ -142,9 +142,8 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
 
             emit PoolFunded(address(pool), totalAmount);
 
-            for (uint256 i = 0; i < delegatees.length; i++) {
-                FranchiserPool(address(pool)).delegate(delegatees[i], amounts[i]);
-            }
+        for (uint256 i; i < delegatees.length; ++i) {
+            FranchiserPool(address(pool)).delegate(delegatees[i], amounts[i]);
         }
     }
 

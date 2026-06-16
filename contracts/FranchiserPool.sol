@@ -186,7 +186,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         onlyGuardian
     {
         unchecked {
-            for (uint256 i = 0; i < delegatees.length; i++) {
+            for (uint256 i; i < delegatees.length; ++i) {
                 _recallDelegate(delegatees[i]);
             }
         }

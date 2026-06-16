@@ -200,7 +200,7 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
 
         franchisers = new Franchiser[](subDelegatees_.length);
         unchecked {
-            for (uint256 i = 0; i < subDelegatees_.length; i++)
+            for (uint256 i; i < subDelegatees_.length; ++i)
                 franchisers[i] = subDelegate(subDelegatees_[i], amounts[i]);
         }
     }
@@ -220,7 +220,7 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         onlyDelegatee
     {
         unchecked {
-            for (uint256 i = 0; i < subDelegatees_.length; i++)
+            for (uint256 i; i < subDelegatees_.length; ++i)
                 _unSubDelegate(subDelegatees_[i], false);
         }
     }
