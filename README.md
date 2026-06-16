@@ -49,6 +49,8 @@ Franchiser clones use deterministic CREATE2 addresses (via OpenZeppelin `Clones`
 | `DECAY_FACTOR` | `2` | Each sub-delegation level halves `maximumSubDelegatees`. |
 | `INITIAL_MAXIMUM_SUBDELEGATEES` | `1` | Direct delegatees (from a pool or factory) may sub-delegate exactly once. |
 | `MINIMUM_FREEZE_PERIOD` | `10 days` | Minimum duration of a guardian-triggered freeze. |
+| `MAXIMUM_FREEZE_PERIOD` | `30 days` | Maximum duration of a guardian-triggered freeze. |
+| `DELEGATEES_LIMIT` | `100` | Hard upper bound on `maxDelegatees` per pool; ensures `_recallAll` always fits in one block. |
 
 ### Roles
 
@@ -92,9 +94,15 @@ Batch variants `fundMany` / `recallMany` and the gasless `permitAndFund` / `perm
 
 ```
 1. Governance calls FranchiserPoolFactory.createPool(
-       coordinator, guardian, maxDelegatees, freezePeriod, initialAmount)
+       coordinator, guardian, maxDelegatees, freezePeriod, amount)
    └─ Deploys a FranchiserPool
-   └─ Transfers initialAmount from governance to pool (if > 0)
+   └─ Transfers amount from governance to pool (amount must be > 0)
+
+   OR — deploy and fund delegatees atomically:
+   Governance calls FranchiserPoolFactory.createPoolAndFund(
+       coordinator, guardian, maxDelegatees, freezePeriod,
+       totalAmount, delegatees[], amounts[])
+   └─ Deploys a FranchiserPool, seeds it, and delegates to each delegatee in one tx
 
 2. Governance calls fundPool(pool, amount)       ← pulls from governance wallet
               or  transferToPool(pool, amount)   ← pushes from factory balance
@@ -118,7 +126,7 @@ Batch variants `fundMany` / `recallMany` and the gasless `permitAndFund` / `perm
 7. Guardian calls pool.emergencyFreezeAndRecallPool()
    └─ Recalls all active delegatees, then freezes
 
-8. Guardian calls pool.emergencyRecallDelegatees([addr1, addr2, ...])
+8. Guardian calls pool.emergencyRecallDelegates([addr1, addr2, ...])
    └─ Recalls specific delegatees; works even while frozen
 
 9. Governance calls factory.unfreezePool(pool)
@@ -135,10 +143,10 @@ All setters are called on `FranchiserPoolFactory` and are restricted to Governan
 
 | Function | Description |
 |---|---|
-| `setCoordinator(pool, newCoordinator)` | Replace the pool's coordinator. Reverts if `newCoordinator` is zero. |
-| `setGuardian(pool, newGuardian)` | Replace the pool's guardian. Reverts if `newGuardian` is zero. |
-| `setMaxDelegatees(pool, max)` | Adjust the cap on active delegatees. Takes effect on the next `delegate` call. |
-| `setFreezePeriod(pool, period)` | Adjust the freeze duration. Must be ≥ `MINIMUM_FREEZE_PERIOD` (10 days). |
+| `setCoordinator(pool, newCoordinator)` | Replace the pool's coordinator. Reverts if `newCoordinator` is zero, equals current coordinator, or equals current guardian. |
+| `setGuardian(pool, newGuardian)` | Replace the pool's guardian. Reverts if `newGuardian` is zero, equals current guardian, or equals current coordinator. |
+| `setMaxDelegatees(pool, max)` | Adjust the cap on active delegatees (1–`DELEGATEES_LIMIT`). Takes effect on the next `delegate` call. |
+| `setFreezePeriod(pool, period)` | Adjust the freeze duration. Must be within [`MINIMUM_FREEZE_PERIOD`, `MAXIMUM_FREEZE_PERIOD`] (10–30 days). |
 
 ---
 
