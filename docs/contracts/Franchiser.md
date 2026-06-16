@@ -8,7 +8,7 @@
 contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable
 ```
 
-Author: WOOF! Software
+Author: Woof
 
 This contract allows for the delegation of voting tokens in a recursive manner,
 enabling complex delegation hierarchies.
@@ -59,6 +59,8 @@ contract IVotingToken immutable votingToken
 ```
 
 The `votingToken` of the contract.
+
+Should be the COMP token. Used for delegation and transfer of voting power.
 
 
 Return values:

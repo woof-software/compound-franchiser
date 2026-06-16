@@ -8,7 +8,7 @@
 contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolFactoryEvents
 ```
 
-Author: WOOF! Software
+Author: Woof
 
 Governance's sole entry point for creating, funding, and halting
 FranchiserPool programs, and for adjusting their parameters.
@@ -33,6 +33,8 @@ contract IERC20 immutable votingToken
 ```
 
 The `votingToken` of the contract.
+
+Should be the COMP token. Used for delegation and transfer of voting power.
 
 
 Return values:

@@ -85,3 +85,19 @@ Parameters:
 | :------ | :------ | :---------------------------------------- |
 | count   | uint256 | The number of delegatees provided.        |
 | maximum | uint256 | The maximum number of delegatees allowed. |
+
+### FactoryAsActor
+
+```solidity
+error FactoryAsActor(address coordinator, address guardian)
+```
+
+Thrown when creating a pool with a coordinator or guardian address equal to the factory address.
+
+
+Parameters:
+
+| Name        | Type    | Description                        |
+| :---------- | :------ | :--------------------------------- |
+| coordinator | address | The provided coordinator address.  |
+| guardian    | address | The provided guardian address.     |

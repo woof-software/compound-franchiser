@@ -8,7 +8,7 @@
 contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents
 ```
 
-Author: WOOF! Software
+Author: Woof
 
 Manages a pool of idle COMP and distributes it to top-level delegatees via
 Franchiser instances. Deployed and controlled by FranchiserPoolFactory on
@@ -65,6 +65,8 @@ contract IERC20 immutable votingToken
 ```
 
 The `votingToken` of the contract.
+
+Should be the COMP token. Used for delegation and transfer of voting power.
 
 
 Return values:
@@ -187,15 +189,6 @@ function activeDelegatees() external view returns (address[] memory)
 ```
 
 Returns the current set of active top-level delegatee addresses.
-### getFranchiser (0x78b440ac)
-
-```solidity
-function getFranchiser(address delegatee) public view returns (Franchiser)
-```
-
-Returns the deterministic Franchiser address for a given delegatee.
-
-The contract may or may not be deployed yet.
 ### delegate (0x026e402b)
 
 ```solidity
@@ -291,3 +284,12 @@ function unfreeze() external onlyFactory
 ```
 
 Lifts an active freeze early, re-enabling coordinator actions.
+### getFranchiser (0x78b440ac)
+
+```solidity
+function getFranchiser(address delegatee) public view returns (Franchiser)
+```
+
+Returns the deterministic Franchiser address for a given delegatee.
+
+The contract may or may not be deployed yet.
