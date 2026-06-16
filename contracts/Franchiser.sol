@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.30;
 
-import { IFranchiser } from "./interfaces/Franchiser/IFranchiser.sol";
-import { FranchiserImmutableState } from "./base/FranchiserImmutableState.sol";
+import { IFranchiserErrors } from "./interfaces/Franchiser/IFranchiserErrors.sol";
+import { IFranchiserEvents } from "./interfaces/Franchiser/IFranchiserEvents.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
@@ -10,7 +10,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVotingToken } from "./interfaces/IVotingToken.sol";
 
-contract Franchiser is IFranchiser, FranchiserImmutableState, Ownable {
+contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Clones for address;
     using SafeERC20 for IERC20;
@@ -20,6 +20,10 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Ownable {
 
     /// @inheritdoc IFranchiser
     Franchiser public immutable franchiserImplementation;
+
+    /// @notice The `votingToken` of the contract.
+    /// @return The `votingToken`.
+    IVotingToken public immutable votingToken;
 
     address private _delegator;
     /// @inheritdoc IFranchiser
@@ -51,9 +55,9 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Ownable {
     }
 
     constructor(IVotingToken votingToken_)
-        FranchiserImmutableState(votingToken_)
         Ownable(msg.sender)
     {
+        votingToken = votingToken_;
         franchiserImplementation = Franchiser(address(this));
         // this borks the implementation contract as desired,
         // new instances should be cloned.

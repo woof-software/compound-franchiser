@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.30;
 
-import { IFranchiserPoolFactory } from "./interfaces/FranchiserPoolFactory/IFranchiserPoolFactory.sol";
-import { FranchiserImmutableState } from "./base/FranchiserImmutableState.sol";
+import { IFranchiserPoolFactoryErrors } from "./interfaces/FranchiserPoolFactory/IFranchiserPoolFactoryErrors.sol";
+import { IFranchiserPoolFactoryEvents } from "./interfaces/FranchiserPoolFactory/IFranchiserPoolFactoryEvents.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVotingToken } from "./interfaces/IVotingToken.sol";
@@ -11,11 +11,14 @@ import { FranchiserPool } from "./FranchiserPool.sol";
 /// @notice Governance's sole entry point for creating, funding, and halting
 ///         FranchiserPool programs, and for adjusting their parameters.
 ///         All functions are restricted to the immutable governance address.
-contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableState {
+contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolFactoryEvents {
     using SafeERC20 for IERC20;
 
     /// @inheritdoc IFranchiserPoolFactory
     uint256 public constant MINIMUM_FREEZE_PERIOD = 10 days;
+    /// @notice The `votingToken` of the contract.
+    /// @return The `votingToken`.
+    IERC20 public immutable votingToken;
 
     /// @inheritdoc IFranchiserPoolFactory
     address public immutable governance;
@@ -36,7 +39,6 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
     }
 
     constructor(IVotingToken votingToken_, address governance_)
-        FranchiserImmutableState(votingToken_)
     {
         if (governance_ == address(0)) revert ZeroAddress();
         governance = governance_;
@@ -45,6 +47,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableSta
     // -------------------------------------------------------------------------
     // Governance functions
     // -------------------------------------------------------------------------
+        votingToken = votingToken_;
 
     function _createPool(
         address coordinator_,

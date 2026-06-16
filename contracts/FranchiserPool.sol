@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.30;
 
-import { IFranchiserPool } from "./interfaces/FranchiserPool/IFranchiserPool.sol";
-import { FranchiserImmutableState } from "./base/FranchiserImmutableState.sol";
+import { IFranchiserPoolErrors } from "./interfaces/FranchiserPool/IFranchiserPoolErrors.sol";
+import { IFranchiserPoolEvents } from "./interfaces/FranchiserPool/IFranchiserPoolEvents.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -14,7 +14,7 @@ import { Franchiser } from "./Franchiser.sol";
 ///         Franchiser instances. Deployed and controlled by FranchiserPoolFactory on
 ///         behalf of Governance. The Coordinator manages delegations; the Guardian
 ///         provides emergency recall and freeze capabilities.
-contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
+contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     using Clones for address;
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
@@ -32,6 +32,10 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
     Franchiser public immutable franchiserImplementation;
 
     /// @inheritdoc IFranchiserPool
+    /// @notice The `votingToken` of the contract.
+    /// @return The `votingToken`.
+    IERC20 public immutable votingToken;
+
     address public immutable factory;
 
     /// @inheritdoc IFranchiserPool
@@ -77,7 +81,7 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
         address guardian_,
         uint256 maxDelegatees_,
         uint256 freezePeriod_
-    ) FranchiserImmutableState(votingToken_) {
+    ) {
         if (coordinator_ == address(0)) revert ZeroAddress();
         if (guardian_ == address(0)) revert ZeroAddress();
         if (freezePeriod_ < MINIMUM_FREEZE_PERIOD)
@@ -87,6 +91,7 @@ contract FranchiserPool is IFranchiserPool, FranchiserImmutableState {
 
         factory = msg.sender;
         franchiserImplementation = new Franchiser(votingToken_);
+        votingToken = votingToken_;
         coordinator = coordinator_;
         guardian = guardian_;
         maxDelegatees = maxDelegatees_;
