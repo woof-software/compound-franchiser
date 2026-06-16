@@ -16,7 +16,7 @@ import { IVotingToken } from "./interfaces/IVotingToken.sol";
  * @custom:security-contact dmitriy@woof.software
  * @notice This contract allows for the delegation of voting tokens in a recursive manner,
  *         enabling complex delegation hierarchies.
- */ 
+ */
 contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Clones for address;
@@ -33,6 +33,7 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
     Franchiser public immutable franchiserImplementation;
 
     /// @notice The `votingToken` of the contract.
+    /// @dev Should be the COMP token. Used for delegation and transfer of voting power.
     /// @return The `votingToken`.
     IVotingToken public immutable votingToken;
 

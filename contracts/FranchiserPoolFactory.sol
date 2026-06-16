@@ -21,6 +21,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     using SafeERC20 for IERC20;
 
     /// @notice The `votingToken` of the contract.
+    /// @dev Should be the COMP token. Used for delegation and transfer of voting power.
     /// @return The `votingToken`.
     IERC20 public immutable votingToken;
 

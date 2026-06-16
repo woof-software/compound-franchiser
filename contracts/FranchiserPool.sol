@@ -42,6 +42,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     Franchiser public immutable franchiserImplementation;
 
     /// @notice The `votingToken` of the contract.
+    /// @dev Should be the COMP token. Used for delegation and transfer of voting power.
     /// @return The `votingToken`.
     IERC20 public immutable votingToken;
 
@@ -137,17 +138,6 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     /// @notice Returns the current set of active top-level delegatee addresses.
     function activeDelegatees() external view returns (address[] memory) {
         return _activeDelegatees.values();
-    }
-
-    /// @notice Returns the deterministic Franchiser address for a given delegatee.
-    /// @dev The contract may or may not be deployed yet.
-    function getFranchiser(address delegatee) public view returns (Franchiser) {
-        return Franchiser(
-            address(franchiserImplementation).predictDeterministicAddress(
-                bytes20(delegatee),
-                address(this)
-            )
-        );
     }
 
     // -------------------------------------------------------------------------
@@ -294,6 +284,17 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     function unfreeze() external onlyFactory {
         frozenUntil = 0;
         emit PoolUnfrozen();
+    }
+
+    /// @notice Returns the deterministic Franchiser address for a given delegatee.
+    /// @dev The contract may or may not be deployed yet.
+    function getFranchiser(address delegatee) public view returns (Franchiser) {
+        return Franchiser(
+            address(franchiserImplementation).predictDeterministicAddress(
+                bytes20(delegatee),
+                address(this)
+            )
+        );
     }
 
     /// @notice Internal function to delegate `amount` of COMP to `delegatee`, adding them as an active delegatee if needed.
