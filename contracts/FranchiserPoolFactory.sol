@@ -10,7 +10,7 @@ import { FranchiserPool } from "./FranchiserPool.sol";
 
 /**
  * @title FranchiserPoolFactory contract for managing FranchiserPool programs.
- * @author WOOF! Software
+ * @author Woof
  * @custom:security-contact dmitriy@woof.software
  * @notice Governance's sole entry point for creating, funding, and halting
  *         FranchiserPool programs, and for adjusting their parameters.

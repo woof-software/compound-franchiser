@@ -12,7 +12,7 @@ import { Franchiser } from "./Franchiser.sol";
 
 /**
  * @title FranchiserPool contract for managing a pool of idle COMP and distributing it to top-level delegatees.
- * @author WOOF! Software
+ * @author Woof
  * @custom:security-contact dmitriy@woof.software
  * @notice Manages a pool of idle COMP and distributes it to top-level delegatees via
  *         Franchiser instances. Deployed and controlled by FranchiserPoolFactory on

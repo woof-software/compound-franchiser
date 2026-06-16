@@ -12,7 +12,7 @@ import { IVotingToken } from "./interfaces/IVotingToken.sol";
 
 /**
  * @title Franchiser contract for recursive delegation of voting tokens.
- * @author WOOF! Software
+ * @author Woof
  * @custom:security-contact dmitriy@woof.software
  * @notice This contract allows for the delegation of voting tokens in a recursive manner,
  *         enabling complex delegation hierarchies.
