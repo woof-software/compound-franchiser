@@ -288,6 +288,48 @@ describe("FranchiserPoolFactory", function () {
                     )
             ).to.be.revertedWithCustomError(factory, "ZeroAmount");
         });
+
+        it("reverts with FactoryAsActor when coordinator is the factory address", async function () {
+            const { factory, governance, guardian } = await restore();
+            const factoryAddr = await factory.getAddress();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPool(factoryAddr, guardian.address, 5n, FREEZE_PERIOD, 1n)
+            )
+                .to.be.revertedWithCustomError(factory, "FactoryAsActor")
+                .withArgs(factoryAddr, guardian.address);
+        });
+
+        it("reverts with FactoryAsActor when guardian is the factory address", async function () {
+            const { factory, governance, coordinator } = await restore();
+            const factoryAddr = await factory.getAddress();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPool(coordinator.address, factoryAddr, 5n, FREEZE_PERIOD, 1n)
+            )
+                .to.be.revertedWithCustomError(factory, "FactoryAsActor")
+                .withArgs(coordinator.address, factoryAddr);
+        });
+
+        it("emits PoolFunded with pool address and initial amount", async function () {
+            const { factory, governance, coordinator, guardian, AMOUNT } = await restore();
+
+            const poolAddr = await factory
+                .connect(governance)
+                .createPool.staticCall(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, AMOUNT);
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, AMOUNT)
+            )
+                .to.emit(factory, "PoolFunded")
+                .withArgs(poolAddr, AMOUNT);
+        });
     });
 
     describe("createPoolAndFund", function () {
@@ -422,6 +464,24 @@ describe("FranchiserPoolFactory", function () {
             ).to.be.revertedWithCustomError(factory, "ZeroAmount");
         });
 
+        it("reverts with ZeroAmount when totalAmount is 0", async function () {
+            const { factory, governance, coordinator, guardian, other } = await restore();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPoolAndFund(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        FREEZE_PERIOD,
+                        0n,
+                        [other.address],
+                        [1n]
+                    )
+            ).to.be.revertedWithCustomError(factory, "ZeroAmount");
+        });
+
         it("emits PoolCreated with correct pool parameters", async function () {
             const { factory, governance, coordinator, guardian, other } = await restore();
 
@@ -510,6 +570,14 @@ describe("FranchiserPoolFactory", function () {
                 .withArgs(other.address);
         });
 
+        it("reverts with ZeroAmount when amount is 0", async function () {
+            const { factory, governance, pool } = await restorePool();
+
+            await expect(
+                factory.connect(governance).fundPool(await pool.getAddress(), 0n)
+            ).to.be.revertedWithCustomError(factory, "ZeroAmount");
+        });
+
         it("transfers tokens from governance to pool and emits PoolFunded", async function () {
             const { factory, governance, pool, token } = await restorePool();
 
@@ -553,6 +621,14 @@ describe("FranchiserPoolFactory", function () {
             )
                 .to.be.revertedWithCustomError(factory, "UnknownPool")
                 .withArgs(other.address);
+        });
+
+        it("reverts with ZeroAmount when amount is 0", async function () {
+            const { factory, governance, pool } = await restorePool();
+
+            await expect(
+                factory.connect(governance).transferToPool(await pool.getAddress(), 0n)
+            ).to.be.revertedWithCustomError(factory, "ZeroAmount");
         });
 
         it("transfers tokens from factory own balance to pool and emits PoolFunded", async function () {
@@ -787,6 +863,23 @@ describe("FranchiserPoolFactory", function () {
                 .withArgs(other.address);
         });
 
+        it("reverts if maxDelegatees is 0", async function () {
+            const { factory, governance, pool } = await restorePool();
+
+            await expect(
+                factory.connect(governance).setMaxDelegatees(await pool.getAddress(), 0n)
+            ).to.be.revertedWithCustomError(pool, "ZeroAmount");
+        });
+
+        it("reverts if maxDelegatees exceeds DELEGATEES_LIMIT", async function () {
+            const { factory, governance, pool } = await restorePool();
+            const limit = await pool.DELEGATEES_LIMIT();
+
+            await expect(
+                factory.connect(governance).setMaxDelegatees(await pool.getAddress(), limit + 1n)
+            ).to.be.revertedWithCustomError(pool, "MaxDelegateesExceedsLimit");
+        });
+
         it("updates pool maxDelegatees and emits MaxDelegateesUpdated", async function () {
             const { factory, governance, pool } = await restorePool();
 
@@ -922,6 +1015,55 @@ describe("FranchiserPoolFactory", function () {
                 .withArgs(poolAddr);
 
             expect(await pool.frozenUntil()).to.equal(0n);
+        });
+    });
+
+    describe("isKnownPool", function () {
+        it("returns false for an address not deployed by this factory", async function () {
+            const { factory, other } = await restore();
+
+            expect(await factory.isKnownPool(other.address)).to.be.false;
+        });
+
+        it("returns true for a pool deployed by this factory", async function () {
+            const { factory, pool } = await restorePool();
+
+            expect(await factory.isKnownPool(await pool.getAddress())).to.be.true;
+        });
+    });
+
+    describe("getAllPools", function () {
+        it("returns an empty array when no pools have been created", async function () {
+            const { factory } = await restore();
+
+            expect(await factory.getAllPools()).to.deep.equal([]);
+        });
+
+        it("returns an array of all pool addresses created by this factory", async function () {
+            const { factory, governance, coordinator, guardian } = await restore();
+
+            const receipt1 = await (
+                await factory
+                    .connect(governance)
+                    .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n)
+            ).wait();
+            const event1 = receipt1?.logs.find(
+                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
+            );
+            const poolAddr1 = event1 ? (factory.interface.parseLog(event1)?.args[0] as string) : "";
+
+            const receipt2 = await (
+                await factory
+                    .connect(governance)
+                    .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n)
+            ).wait();
+            const event2 = receipt2?.logs.find(
+                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
+            );
+            const poolAddr2 = event2 ? (factory.interface.parseLog(event2)?.args[0] as string) : "";
+
+            const pools = await factory.getAllPools();
+            expect(pools).to.deep.equal([poolAddr1, poolAddr2]);
         });
     });
 });

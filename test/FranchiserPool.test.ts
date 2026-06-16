@@ -180,7 +180,7 @@ describe("FranchiserPool", function () {
                     guardian.address,
                     0n,
                     FREEZE_PERIOD,
-                    0n
+                    1n
                 )
             ).to.be.revertedWithCustomError(pool, "ZeroAmount");
         });

@@ -301,7 +301,6 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     /// @param delegatee The address to delegate to.
     /// @param amount The amount of COMP to delegate.
     function _delegate(address delegatee, uint256 amount) internal {
-        if (amount == 0) revert ZeroAmount();
         Franchiser franchiser = getFranchiser(delegatee);
 
         if (!_activeDelegatees.contains(delegatee)) {
