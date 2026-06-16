@@ -53,21 +53,6 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
 
     EnumerableSet.AddressSet private _subDelegatees;
 
-    /// @inheritdoc IFranchiser
-    function delegator() public view returns (address) {
-        // if a delegator has explicitly been set, return it
-        if (_delegator != address(0)) return _delegator;
-        // otherwise, look it up from the owner
-        else if (owner() != address(0)) return Franchiser(owner()).delegatee();
-        // return 0 in the implementation contract
-        return address(0);
-    }
-
-    /// @inheritdoc IFranchiser
-    function subDelegatees() external view returns (address[] memory) {
-        return _subDelegatees.values();
-    }
-
     /// @dev Reverts if called by any account other than the `delegatee`.
     modifier onlyDelegatee() {
         if (msg.sender != delegatee) revert NotDelegatee(msg.sender, delegatee);
@@ -126,6 +111,26 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         external
     {
         initialize(address(0), delegatee_, maximumSubDelegatees_);
+    }
+
+    /// @notice The address that delegated tokens to this address.
+    /// @dev Is derived from the `delegatee` of the `owner`, except for
+    ///      direct descendants of the FranchiserFactory.
+    ///      Never changes after being set via initialize.
+    /// @return The `delegator`
+    function delegator() public view returns (address) {
+        // if a delegator has explicitly been set, return it
+        if (_delegator != address(0)) return _delegator;
+        // otherwise, look it up from the owner
+        else if (owner() != address(0)) return Franchiser(owner()).delegatee();
+        // return 0 in the implementation contract
+        return address(0);
+    }
+
+    /// @notice The list of current `subDelegatee` addresses.
+    /// @return The current `subDelegatee` addresses.
+    function subDelegatees() external view returns (address[] memory) {
+        return _subDelegatees.values();
     }
 
     function getSalt(address subDelegatee) private pure returns (bytes32) {
@@ -208,26 +213,6 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         _unSubDelegate(subDelegatee, false);
     }
 
-    /// @dev Must only set assumeExistence to true when the subDelegatee exists
-    ///      and is already a subDelegatee. This saves gas in recall.
-    function _unSubDelegate(address subDelegatee, bool assumeExistence)
-        private
-    {
-        Franchiser franchiser = getFranchiser(subDelegatee);
-        if (assumeExistence || _subDelegatees.contains(subDelegatee)) {
-            assert(_subDelegatees.remove(subDelegatee));
-            franchiser.recall(address(this));
-            emit SubDelegateeDeactivated(subDelegatee);
-        }
-        // this condition can only be reached if unSubDelegate is called with a subDelegatee
-        // that has a franchiser contract but isn't currently active - when this is the case,
-        // calling recall is a no-op if the franchiser doesn't have tokens, so it's fine,
-        // but in the very odd case that the franchiser has received voting tokens out of
-        // band, this will retrieve them silently, which is also fine
-        else if (address(franchiser).code.length > 0)
-            franchiser.recall(address(this));
-    }
-
     /// @notice Calls unSubDelegate many times.
     /// @param subDelegatees_ The addresses that voting power will be removed from.
     function unSubDelegateMany(address[] calldata subDelegatees_)
@@ -259,5 +244,25 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
             to,
             votingToken.balanceOf(address(this))
         );
+    }
+
+    /// @dev Must only set assumeExistence to true when the subDelegatee exists
+    ///      and is already a subDelegatee. This saves gas in recall.
+    function _unSubDelegate(address subDelegatee, bool assumeExistence)
+        internal
+    {
+        Franchiser franchiser = getFranchiser(subDelegatee);
+        if (assumeExistence || _subDelegatees.contains(subDelegatee)) {
+            assert(_subDelegatees.remove(subDelegatee));
+            franchiser.recall(address(this));
+            emit SubDelegateeDeactivated(subDelegatee);
+        }
+        // this condition can only be reached if unSubDelegate is called with a subDelegatee
+        // that has a franchiser contract but isn't currently active - when this is the case,
+        // calling recall is a no-op if the franchiser doesn't have tokens, so it's fine,
+        // but in the very odd case that the franchiser has received voting tokens out of
+        // band, this will retrieve them silently, which is also fine
+        else if (address(franchiser).code.length > 0)
+            franchiser.recall(address(this));
     }
 }

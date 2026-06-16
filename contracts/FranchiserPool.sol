@@ -145,54 +145,6 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     }
 
     // -------------------------------------------------------------------------
-    // Internal helpers
-    // -------------------------------------------------------------------------
-
-    function _delegate(address delegatee, uint256 amount) private {
-        if (amount == 0) revert ZeroAmount();
-        Franchiser franchiser = getFranchiser(delegatee);
-
-        if (!_activeDelegatees.contains(delegatee)) {
-            if (_activeDelegatees.length() >= maxDelegatees)
-                revert MaxDelegateesReached(maxDelegatees);
-
-            assert(_activeDelegatees.add(delegatee));
-
-            if (address(franchiser).code.length == 0) {
-                address(franchiserImplementation).cloneDeterministic(bytes20(delegatee));
-                franchiser.initialize(address(this), delegatee, INITIAL_MAXIMUM_SUBDELEGATEES);
-            }
-
-            emit DelegateeActivated(delegatee);
-        }
-
-        IERC20(address(votingToken)).safeTransfer(address(franchiser), amount);
-
-        emit Delegated(delegatee, amount);
-    }
-
-    function _recallDelegatee(address delegatee) private {
-        bool wasActive = _activeDelegatees.remove(delegatee);
-
-        Franchiser franchiser = getFranchiser(delegatee);
-
-        if (address(franchiser).code.length > 0) {
-            franchiser.recall(address(this));
-        }
-
-        if (wasActive) emit DelegateeDeactivated(delegatee);
-    }
-
-    function _recallAll() private {
-        uint256 n = _activeDelegatees.length();
-        while (n != 0) {
-            unchecked {
-                _recallDelegatee(_activeDelegatees.at(--n));
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Coordinator functions
     // -------------------------------------------------------------------------
 
@@ -317,5 +269,54 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     function unfreeze() external onlyFactory {
         frozenUntil = 0;
         emit PoolUnfrozen();
+    }
+
+    /// @notice Internal function to delegate `amount` of COMP to `delegatee`, adding them as an active delegatee if needed.
+    /// @param delegatee The address to delegate to.
+    /// @param amount The amount of COMP to delegate.
+    function _delegate(address delegatee, uint256 amount) internal {
+        if (amount == 0) revert ZeroAmount();
+        Franchiser franchiser = getFranchiser(delegatee);
+
+        if (!_activeDelegatees.contains(delegatee)) {
+            if (_activeDelegatees.length() >= maxDelegatees)
+                revert MaxDelegateesExceeded(_activeDelegatees.length(), maxDelegatees);
+
+            if (address(franchiser).code.length == 0) {
+                address(franchiserImplementation).cloneDeterministic(bytes20(delegatee));
+                franchiser.initialize(address(this), delegatee, INITIAL_MAXIMUM_SUBDELEGATEES);
+            }
+
+            _activeDelegatees.add(delegatee);
+            emit DelegateeActivated(delegatee);
+        }
+
+        votingToken.safeTransfer(address(franchiser), amount);
+
+        emit Delegated(delegatee, amount);
+    }
+
+    /// @notice Internal function to recall all COMP from `delegatee` and their sub-delegatees, removing them as an active delegatee if they had any COMP to recall.
+    /// @param delegatee The address to recall from.
+    function _recallDelegate(address delegatee) internal {
+        bool wasActive = _activeDelegatees.remove(delegatee);
+
+        Franchiser franchiser = getFranchiser(delegatee);
+
+        if (address(franchiser).code.length > 0) {
+            franchiser.recall(address(this));
+        }
+
+        if (wasActive) emit DelegateeDeactivated(delegatee);
+    }
+
+    /// @notice Internal function to recall all COMP from all active delegatees and their sub-delegatees.
+    function _recallAll() internal {
+        uint256 n = _activeDelegatees.length();
+        while (n != 0) {
+            unchecked {
+                _recallDelegate(_activeDelegatees.at(--n));
+            }
+        }
     }
 }

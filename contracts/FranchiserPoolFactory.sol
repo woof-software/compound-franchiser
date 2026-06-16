@@ -209,4 +209,14 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
 
         emit PoolUnfrozen(pool);
     }
+
+    /// @notice Returns true if `pool` was deployed by this factory.
+    function isKnownPool(address pool) external view returns (bool) {
+        return _pools.contains(pool);
+    }
+
+    /// @notice Returns the list of all pools deployed by this factory.
+    function getAllPools() external view returns (address[] memory) {
+        return _pools.values();
+    }
 }
