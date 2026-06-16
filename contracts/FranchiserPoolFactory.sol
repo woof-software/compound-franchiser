@@ -3,6 +3,7 @@ pragma solidity 0.8.35;
 
 import { IFranchiserPoolFactoryErrors } from "./interfaces/FranchiserPoolFactory/IFranchiserPoolFactoryErrors.sol";
 import { IFranchiserPoolFactoryEvents } from "./interfaces/FranchiserPoolFactory/IFranchiserPoolFactoryEvents.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { FranchiserPool } from "./FranchiserPool.sol";
@@ -16,6 +17,7 @@ import { FranchiserPool } from "./FranchiserPool.sol";
  *         All functions are restricted to the immutable governance address.
  */
 contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolFactoryEvents {
+    using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
     /// @notice The `votingToken` of the contract.
@@ -25,10 +27,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @notice The governance address (Compound timelock).
     address public constant governance = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925;
 
-    /// @inheritdoc IFranchiserPoolFactory
-    mapping(address => bool) public isKnownPool;
-
-    address[] internal _pools;
+    EnumerableSet.AddressSet private _pools;
 
     /// @notice Checks that the caller is the governance address.
     /// @dev Reverts with NotGovernance if the caller is not governance.
@@ -40,7 +39,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @notice Checks that `pool` is a known pool deployed by this factory.
     /// @dev Reverts with UnknownPool if `pool` is not in the `_pools` set.
     modifier onlyKnownPool(address pool) {
-        if (!isKnownPool[pool]) revert UnknownPool(pool);
+        if (!_pools.contains(pool)) revert UnknownPool(pool);
         _;
     }
 
@@ -52,13 +51,24 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         votingToken = votingToken_;
     }
 
-    function _createPool(
+    /// @notice Deploys a new FranchiserPool and seeds it with COMP.
+    /// @dev Requires governance to have approved this contract for `amount`.
+    ///      Reverts if `freezePeriod` is below `MINIMUM_FREEZE_PERIOD`.
+    /// @param coordinator_ The initial coordinator address.
+    /// @param guardian_ The initial guardian address.
+    /// @param maxDelegatees_ The maximum number of simultaneous top-level delegatees.
+    /// @param amount The initial COMP amount to transfer from governance to the pool.
+    /// @param freezePeriod_ The initial emergency freeze duration (>= MINIMUM_FREEZE_PERIOD).
+    /// @return pool The newly deployed FranchiserPool.
+    function createPool(
         address coordinator_,
         address guardian_,
         uint256 maxDelegatees_,
-        uint256 freezePeriod_
-    ) internal returns (FranchiserPool pool) {
+        uint256 freezePeriod_,
+        uint256 amount
+    ) public onlyGovernance returns (FranchiserPool pool) {
         if (amount == 0) revert ZeroAmount();
+
         pool = new FranchiserPool(
             votingToken,
             coordinator_,
@@ -66,9 +76,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
             maxDelegatees_,
             freezePeriod_
         );
-
-        isKnownPool[address(pool)] = true;
-        _pools.push(address(pool));
+        _pools.add(address(pool));
 
         emit PoolCreated(
             address(pool),
@@ -77,27 +85,14 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
             maxDelegatees_,
             freezePeriod_
         );
-    }
 
-    /// @inheritdoc IFranchiserPoolFactory
-    function createPool(
-        address coordinator_,
-        address guardian_,
-        uint256 maxDelegatees_,
-        uint256 freezePeriod_,
-        uint256 amount
-    ) external onlyGovernance returns (FranchiserPool pool) {
-        pool = _createPool(coordinator_, guardian_, maxDelegatees_, freezePeriod_);
-
-        if (amount > 0) {
         votingToken.safeTransferFrom(
             msg.sender,
             address(pool),
             amount
         );
 
-            emit PoolFunded(address(pool), amount);
-        }
+        emit PoolFunded(address(pool), amount);
     }
 
     /// @notice Deploys a new FranchiserPool and funds initial delegatees in a single transaction.
@@ -144,11 +139,6 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         for (uint256 i; i < delegatees.length; ++i) {
             FranchiserPool(address(pool)).delegate(delegatees[i], amounts[i]);
         }
-    }
-
-    /// @inheritdoc IFranchiserPoolFactory
-    function getAllPools() external view returns (address[] memory) {
-        return _pools;
     }
 
     /// @notice Transfers additional COMP from governance to an existing pool.
