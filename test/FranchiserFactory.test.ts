@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { network } from "hardhat";
 import { Signature } from "ethers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/types";
-import { MockVotingToken } from "../types/ethers-contracts/mocks/MockVotingToken.js";
+import type { MockVotingToken } from "../types/ethers-contracts/mocks/MockVotingToken.js";
 
 const { ethers, networkHelpers } = await network.create();
 
