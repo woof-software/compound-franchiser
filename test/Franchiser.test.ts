@@ -3,32 +3,49 @@ import { network } from "hardhat";
 
 const { ethers, networkHelpers } = await network.create();
 
+const GOVERNANCE_ADDRESS = "0x6d903f6003cca6255D85CcA4D3B5E5146dC33925";
+const FREEZE_PERIOD = 10n * 24n * 60n * 60n; // 10 days
+
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 async function deployFixture() {
-    const [owner, delegatee, subDelegatee, other] = await ethers.getSigners();
+    const [, coordinator, guardian, delegatee, subDelegatee, other] = await ethers.getSigners();
+
+    await networkHelpers.setBalance(GOVERNANCE_ADDRESS, ethers.parseEther("100"));
+    const governance = await ethers.getImpersonatedSigner(GOVERNANCE_ADDRESS);
 
     const token = await ethers.deployContract("MockVotingToken");
-    const factory = await ethers.deployContract("FranchiserFactory", [
+    const poolFactory = await ethers.deployContract("FranchiserPoolFactory", [
         await token.getAddress(),
     ]);
 
     const AMOUNT = ethers.parseEther("1000");
-    await token.mint(owner.address, AMOUNT * 10n);
-    await token.connect(owner).approve(await factory.getAddress(), ethers.MaxUint256);
+    await token.mint(governance.address, AMOUNT * 10n);
+    await token.connect(governance).approve(await poolFactory.getAddress(), ethers.MaxUint256);
 
-    return { owner, delegatee, subDelegatee, other, token, factory, AMOUNT };
+    return { coordinator, guardian, delegatee, subDelegatee, other, token, poolFactory, governance, AMOUNT };
 }
 
 async function fundedFranchiserFixture() {
     const base = await deployFixture();
-    const { owner, delegatee, factory, AMOUNT } = base;
+    const { coordinator, guardian, delegatee, poolFactory, governance, AMOUNT } = base;
 
-    await factory.connect(owner).fund(delegatee.address, AMOUNT);
-    const franchiserAddr = await factory.getFranchiser(owner.address, delegatee.address);
+    await poolFactory.connect(governance).createPool(
+        coordinator.address,
+        guardian.address,
+        10n,
+        FREEZE_PERIOD,
+        AMOUNT
+    );
+    const [poolAddr] = await poolFactory.getAllPools();
+    const pool = await ethers.getContractAt("FranchiserPool", poolAddr);
+
+    await pool.connect(coordinator).delegate(delegatee.address, AMOUNT);
+
+    const franchiserAddr = await pool.getFranchiser(delegatee.address);
     const franchiser = await ethers.getContractAt("Franchiser", franchiserAddr);
 
-    return { ...base, franchiser, franchiserAddr };
+    return { ...base, pool, poolAddr, franchiser, franchiserAddr };
 }
 
 const restore = async () => await networkHelpers.loadFixture(fundedFranchiserFixture);
@@ -43,14 +60,13 @@ describe("Franchiser", function () {
         });
 
         it("franchiserImplementation is set", async function () {
-            const { franchiser, factory } = await restore();
+            const { franchiser, pool } = await restore();
 
             const implAddr = await franchiser.franchiserImplementation();
             expect(implAddr).to.not.equal(ethers.ZeroAddress);
 
-            // Each clone points to the factory's implementation
-            const factoryImpl = await factory.franchiserImplementation();
-            expect(implAddr).to.equal(factoryImpl);
+            const poolImpl = await pool.franchiserImplementation();
+            expect(implAddr).to.equal(poolImpl);
         });
     });
 
@@ -58,8 +74,7 @@ describe("Franchiser", function () {
         it("reverts with NoDelegatee when delegatee_ is zero address", async function () {
             const { franchiser } = await restore();
 
-            // NoDelegatee is checked before AlreadyInitialized, so this hits line 72
-            // even on an already-initialized franchiser
+            // NoDelegatee is checked before AlreadyInitialized
             await expect(
                 franchiser["initialize(address,uint96)"](ethers.ZeroAddress, 0n)
             ).to.be.revertedWithCustomError(franchiser, "NoDelegatee");
@@ -79,37 +94,39 @@ describe("Franchiser", function () {
             expect(await franchiser.delegatee()).to.equal(delegatee.address);
         });
 
-        it("sets owner to the factory", async function () {
-            const { franchiser, factory } = await restore();
+        it("sets owner to the pool", async function () {
+            const { franchiser, poolAddr } = await restore();
 
-            expect(await franchiser.owner()).to.equal(await factory.getAddress());
+            expect(await franchiser.owner()).to.equal(poolAddr);
         });
 
-        it("sets maximumSubDelegatees from factory constant", async function () {
-            const { franchiser, factory } = await restore();
+        it("sets maximumSubDelegatees from pool constant", async function () {
+            const { franchiser, pool } = await restore();
 
-            const expected = await factory.INITIAL_MAXIMUM_SUBDELEGATEES();
+            const expected = await pool.INITIAL_MAXIMUM_SUBDELEGATEES();
             expect(await franchiser.maximumSubDelegatees()).to.equal(expected);
         });
 
         it("emits Initialized event", async function () {
-            const { owner, delegatee, factory, AMOUNT } = await networkHelpers.loadFixture(deployFixture);
+            const { coordinator, guardian, poolFactory, governance, delegatee, AMOUNT } =
+                await networkHelpers.loadFixture(deployFixture);
 
-            const franchiserAddr = await factory.getFranchiser(
-                owner.address,
-                delegatee.address
+            await poolFactory.connect(governance).createPool(
+                coordinator.address,
+                guardian.address,
+                10n,
+                FREEZE_PERIOD,
+                AMOUNT
             );
+            const [poolAddr] = await poolFactory.getAllPools();
+            const pool = await ethers.getContractAt("FranchiserPool", poolAddr);
 
+            const franchiserAddr = await pool.getFranchiser(delegatee.address);
             const franchiser = await ethers.getContractAt("Franchiser", franchiserAddr);
 
-            await expect(factory.connect(owner).fund(delegatee.address, AMOUNT))
+            await expect(pool.connect(coordinator).delegate(delegatee.address, AMOUNT))
                 .to.emit(franchiser, "Initialized")
-                .withArgs(
-                    await factory.getAddress(),
-                    owner.address,
-                    delegatee.address,
-                    1n
-                );
+                .withArgs(poolAddr, poolAddr, delegatee.address, 1n);
         });
 
         it("delegates voting power to delegatee", async function () {
@@ -122,21 +139,24 @@ describe("Franchiser", function () {
     });
 
     describe("delegator", function () {
-        it("returns the explicit delegator set at initialization", async function () {
-            const { franchiser, owner } = await restore();
-            expect(await franchiser.delegator()).to.equal(owner.address);
+        it("returns the pool address as explicit delegator", async function () {
+            const { franchiser, poolAddr } = await restore();
+            expect(await franchiser.delegator()).to.equal(poolAddr);
         });
 
         it("returns zero address for an uninitialized clone", async function () {
-            const { factory } = await restore();
-            const implAddr = await factory.franchiserImplementation();
+            const { pool } = await restore();
+            const implAddr = await pool.franchiserImplementation();
             const implHex = implAddr.slice(2).toLowerCase();
             // EIP-1167 minimal proxy bytecode pointing at the implementation
             const proxyBytecode = `0x3d602d80600a3d3981f3363d3d373d3d3d363d73${implHex}5af43d82803e903d91602b57fd5bf3`;
             const [signer] = await ethers.getSigners();
+
             const tx = await signer.sendTransaction({ data: proxyBytecode });
             const receipt = await tx.wait();
-            const uninitClone = await ethers.getContractAt("Franchiser", receipt!.contractAddress!);
+
+            const contractAddr = receipt?.contractAddress ?? ethers.ZeroAddress;
+            const uninitClone = await ethers.getContractAt("Franchiser", contractAddr);
             // Both _delegator and owner() are address(0) → falls through to return address(0)
             expect(await uninitClone.delegator()).to.equal(ethers.ZeroAddress);
         });
@@ -311,7 +331,7 @@ describe("Franchiser", function () {
             const mainDelegateeVotesBefore = await token.getCurrentVotes(delegatee.address);
             const subDelegateeVotesBefore = await token.getCurrentVotes(subDelegatee.address);
 
-            // Only one sub-delegatee allowed (max=1), so just test with one
+            // Only one sub-delegatee allowed (max=1), so test with one
             await franchiser
                 .connect(delegatee)
                 .subDelegateMany([subDelegatee.address], [AMOUNT / 2n]);
@@ -392,7 +412,7 @@ describe("Franchiser", function () {
         });
 
         it("recovers tokens sent out-of-band to an already-unsubdelegated franchiser", async function () {
-            const { franchiser, delegatee, subDelegatee, token, AMOUNT } = await networkHelpers.loadFixture(subDelegatedFixture);
+            const { franchiser, delegatee, subDelegatee, token } = await networkHelpers.loadFixture(subDelegatedFixture);
 
             // Remove subDelegatee from the active set (franchiser contract stays deployed)
             await franchiser.connect(delegatee).unSubDelegate(subDelegatee.address);
@@ -404,7 +424,7 @@ describe("Franchiser", function () {
             await token.mint(subFranchiserAddr, outOfBandAmount);
             expect(await token.balanceOf(subFranchiserAddr)).to.equal(outOfBandAmount);
 
-            // Second unSubDelegate: not in active set, but contract exists → line 179
+            // Second unSubDelegate: not in active set, but contract exists → recovers tokens
             await franchiser.connect(delegatee).unSubDelegate(subDelegatee.address);
             expect(await token.balanceOf(subFranchiserAddr)).to.equal(0n);
         });
@@ -439,28 +459,25 @@ describe("Franchiser", function () {
     });
 
     describe("recall", function () {
-        it("reverts if caller is not the owner (factory)", async function () {
+        it("reverts if caller is not the owner (pool)", async function () {
             const { franchiser, other } = await restore();
 
             await expect(
                 franchiser.connect(other).recall(other.address)
-            ).to.be.revertedWithCustomError(
-                franchiser,
-                "OwnableUnauthorizedAccount"
-            );
+            ).to.be.revertedWithCustomError(franchiser, "OwnableUnauthorizedAccount");
         });
 
-        it("transfers the full balance and votes to the recipient", async function () {
-            const { franchiser, owner, delegatee, factory, token, AMOUNT } = await restore();
+        it("transfers the full balance back to the pool when coordinator recalls", async function () {
+            const { franchiser, pool, poolAddr, coordinator, delegatee, token, AMOUNT } = await restore();
 
             const delegateeVotesBefore = await token.getCurrentVotes(delegatee.address);
 
             await expect(
-                factory.connect(owner).recall(delegatee.address, owner.address)
+                pool.connect(coordinator).recall(delegatee.address)
             ).to.changeTokenBalances(
                 ethers,
                 token,
-                [franchiser, owner],
+                [franchiser, poolAddr],
                 [-AMOUNT, AMOUNT]
             );
 
@@ -470,35 +487,31 @@ describe("Franchiser", function () {
         it("also recalls tokens from active sub-franchisers", async function () {
             const {
                 franchiser,
-                owner,
+                pool,
+                poolAddr,
+                coordinator,
                 delegatee,
                 subDelegatee,
-                factory,
                 token,
                 AMOUNT,
             } = await restore();
-          
+
             const mainDelegateeVotesBefore = await token.getCurrentVotes(delegatee.address);
             const subDelegateeVotesBefore = await token.getCurrentVotes(subDelegatee.address);
 
-            await franchiser
-                .connect(delegatee)
-                .subDelegate(subDelegatee.address, AMOUNT / 2n);
+            await franchiser.connect(delegatee).subDelegate(subDelegatee.address, AMOUNT / 2n);
 
             expect(await token.getCurrentVotes(delegatee.address)).to.be.equal(mainDelegateeVotesBefore - AMOUNT / 2n);
             expect(await token.getCurrentVotes(subDelegatee.address)).to.be.equal(subDelegateeVotesBefore + AMOUNT / 2n);
 
             const subAddr = await franchiser.getFranchiser(subDelegatee.address);
 
-            const ownerBalanceBefore = await token.balanceOf(owner.address);
-
-            await factory.connect(owner).recall(delegatee.address, owner.address);
+            await pool.connect(coordinator).recall(delegatee.address);
 
             expect(await token.getCurrentVotes(delegatee.address)).to.be.equal(0);
             expect(await token.getCurrentVotes(subDelegatee.address)).to.be.equal(0);
 
-            // Both balances should be drained
-            expect(await token.balanceOf(owner.address)).to.equal(ownerBalanceBefore + AMOUNT);
+            expect(await token.balanceOf(poolAddr)).to.equal(AMOUNT);
             expect(await token.balanceOf(await franchiser.getAddress())).to.equal(0n);
             expect(await token.balanceOf(subAddr)).to.equal(0n);
         });

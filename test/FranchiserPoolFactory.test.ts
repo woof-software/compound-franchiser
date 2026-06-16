@@ -7,15 +7,19 @@ const { ethers, networkHelpers } = await network.create();
 const FREEZE_PERIOD = 10 * 24 * 3600; // 10 days in seconds
 const MAXIMUM_FREEZE_PERIOD = 30 * 24 * 3600; // 30 days in seconds
 
+const GOVERNANCE_ADDRESS = "0x6d903f6003cca6255D85CcA4D3B5E5146dC33925";
+
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 async function deployFixture() {
-    const [governance, coordinator, guardian, other] = await ethers.getSigners();
+    const [, coordinator, guardian, other] = await ethers.getSigners();
+
+    await networkHelpers.setBalance(GOVERNANCE_ADDRESS, ethers.parseEther("100"));
+    const governance = await ethers.getImpersonatedSigner(GOVERNANCE_ADDRESS);
 
     const token = await ethers.deployContract("MockVotingToken");
     const factory = await ethers.deployContract("FranchiserPoolFactory", [
         await token.getAddress(),
-        governance.address,
     ]);
 
     const AMOUNT = ethers.parseEther("10000");
@@ -62,25 +66,16 @@ describe("FranchiserPoolFactory", function () {
         });
 
         it("stores the governance address", async function () {
-            const { factory, governance } = await restore();
-
-            expect(await factory.governance()).to.equal(governance.address);
-        });
-
-        it("MINIMUM_FREEZE_PERIOD is 10 days", async function () {
             const { factory } = await restore();
 
-            expect(await factory.MINIMUM_FREEZE_PERIOD()).to.equal(BigInt(FREEZE_PERIOD));
+            expect(await factory.governance()).to.equal(GOVERNANCE_ADDRESS);
         });
 
-        it("reverts if governance is zero address", async function () {
-            const { factory, token } = await restore();
+        it("reverts if votingToken is zero address", async function () {
+            const { factory } = await restore();
 
             await expect(
-                ethers.deployContract("FranchiserPoolFactory", [
-                    await token.getAddress(),
-                    ethers.ZeroAddress,
-                ])
+                ethers.deployContract("FranchiserPoolFactory", [ethers.ZeroAddress])
             ).to.be.revertedWithCustomError(factory, "ZeroAddress");
         });
     });
@@ -116,7 +111,7 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         5n,
                         FREEZE_PERIOD - 1,
-                        0n
+                        1n
                     )
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooShort");
         });
@@ -133,7 +128,7 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         5n,
                         MAXIMUM_FREEZE_PERIOD + 1,
-                        0n
+                        1n
                     )
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooLong");
         });
@@ -148,7 +143,7 @@ describe("FranchiserPoolFactory", function () {
                     guardian.address,
                     5n,
                     FREEZE_PERIOD,
-                    0n
+                    1n
                 );
             const receipt = await tx.wait();
             const event = receipt?.logs.find(
@@ -167,7 +162,7 @@ describe("FranchiserPoolFactory", function () {
             const { factory, governance, coordinator, guardian } = await restore();
 
             const params = [
-                [coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 0n],
+                [coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n],
                 [coordinator.address, guardian.address, 10n, FREEZE_PERIOD * 2, ethers.parseEther("100")],
                 [coordinator.address, guardian.address, 3n, FREEZE_PERIOD * 3 / 2, ethers.parseEther("50")],
             ];
@@ -205,7 +200,7 @@ describe("FranchiserPoolFactory", function () {
             const receipt = await (
                 await factory
                     .connect(governance)
-                    .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 0n)
+                    .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n)
             ).wait();
 
             const event = receipt?.logs.find(
@@ -257,7 +252,7 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         5n,
                         FREEZE_PERIOD,
-                        0n
+                        1n
                     )
             ).to.be.revertedWithCustomError(pool, "ZeroAddress");
         });
@@ -273,22 +268,16 @@ describe("FranchiserPoolFactory", function () {
                         ethers.ZeroAddress,
                         5n,
                         FREEZE_PERIOD,
-                        0n
+                        1n
                     )
             ).to.be.revertedWithCustomError(pool, "ZeroAddress");
         });
 
-        it("does not transfer tokens when amount is 0", async function () {
-            const {
-                factory,
-                governance,
-                coordinator,
-                guardian,
-                token
-            } = await restore();
+        it("reverts with ZeroAmount when amount is 0", async function () {
+            const { factory, governance, coordinator, guardian } = await restore();
 
-            const receipt = await (
-                await factory
+            await expect(
+                factory
                     .connect(governance)
                     .createPool(
                         coordinator.address,
@@ -297,15 +286,7 @@ describe("FranchiserPoolFactory", function () {
                         FREEZE_PERIOD,
                         0n
                     )
-            ).wait();
-            const event = receipt?.logs.find(
-                (log) =>
-                    log.topics[0] ===
-                    factory.interface.getEvent("PoolCreated").topicHash
-            );
-            const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
-
-            expect(await token.balanceOf(poolAddr)).to.equal(0n);
+            ).to.be.revertedWithCustomError(factory, "ZeroAmount");
         });
     });
 
@@ -321,12 +302,31 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         5n,
                         FREEZE_PERIOD,
-                        [],
-                        []
+                        1n,
+                        [other.address],
+                        [1n]
                     )
             )
                 .to.be.revertedWithCustomError(factory, "NotGovernance")
                 .withArgs(other.address, await factory.governance());
+        });
+
+        it("reverts with EmptyArray for empty delegatees array", async function () {
+            const { factory, governance, coordinator, guardian } = await restore();
+
+            await expect(
+                factory
+                    .connect(governance)
+                    .createPoolAndFund(
+                        coordinator.address,
+                        guardian.address,
+                        5n,
+                        FREEZE_PERIOD,
+                        1n,
+                        [],
+                        []
+                    )
+            ).to.be.revertedWithCustomError(factory, "EmptyArray");
         });
 
         it("reverts if delegatees and amounts arrays have different lengths", async function () {
@@ -340,6 +340,7 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         5n,
                         FREEZE_PERIOD,
+                        1n,
                         [coordinator.address],
                         []
                     )
@@ -348,6 +349,7 @@ describe("FranchiserPoolFactory", function () {
 
         it("reverts with MaxDelegateesExceeded when delegatees.length exceeds maxDelegatees_", async function () {
             const { factory, governance, coordinator, guardian, other } = await restore();
+            const totalAmount = ethers.parseEther("200");
 
             await expect(
                 factory
@@ -357,6 +359,7 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         1n,
                         FREEZE_PERIOD,
+                        totalAmount,
                         [coordinator.address, other.address],
                         [ethers.parseEther("100"), ethers.parseEther("100")]
                     )
@@ -366,7 +369,7 @@ describe("FranchiserPoolFactory", function () {
         });
 
         it("reverts if freeze period is below minimum", async function () {
-            const { factory, governance, coordinator, guardian, pool } = await restorePool();
+            const { factory, governance, coordinator, guardian, other, pool } = await restorePool();
 
             await expect(
                 factory
@@ -376,14 +379,15 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         5n,
                         FREEZE_PERIOD - 1,
-                        [],
-                        []
+                        1n,
+                        [other.address],
+                        [1n]
                     )
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooShort");
         });
 
         it("reverts if freeze period is above maximum", async function () {
-            const { factory, governance, coordinator, guardian, pool } = await restorePool();
+            const { factory, governance, coordinator, guardian, other, pool } = await restorePool();
 
             await expect(
                 factory
@@ -393,26 +397,11 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         5n,
                         MAXIMUM_FREEZE_PERIOD + 1,
-                        [],
-                        []
+                        1n,
+                        [other.address],
+                        [1n]
                     )
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooLong");
-        });
-
-        it("creates and registers pool with empty delegatees array", async function () {
-            const { factory, governance, coordinator, guardian } = await restore();
-
-            const tx = await factory
-                .connect(governance)
-                .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, [], []);
-            const receipt = await tx.wait();
-            const event = receipt?.logs.find(
-                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
-            );
-            const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
-
-            expect(await factory.isKnownPool(poolAddr)).to.be.true;
-            expect(await factory.getAllPools()).to.include(poolAddr);
         });
 
         it("reverts with ZeroAmount if any individual amount is zero", async function () {
@@ -426,6 +415,7 @@ describe("FranchiserPoolFactory", function () {
                         guardian.address,
                         5n,
                         FREEZE_PERIOD,
+                        1n,
                         [other.address],
                         [0n]
                     )
@@ -433,12 +423,12 @@ describe("FranchiserPoolFactory", function () {
         });
 
         it("emits PoolCreated with correct pool parameters", async function () {
-            const { factory, governance, coordinator, guardian } = await restore();
+            const { factory, governance, coordinator, guardian, other } = await restore();
 
             const receipt = await (
                 await factory
                     .connect(governance)
-                    .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, [], [])
+                    .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n, [other.address], [1n])
             ).wait();
 
             const event = receipt?.logs.find(
@@ -461,12 +451,12 @@ describe("FranchiserPoolFactory", function () {
             const poolAddr = await factory
                 .connect(governance)
                 .createPoolAndFund
-                .staticCall(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, delegatees, amounts);
+                .staticCall(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, AMOUNT, delegatees, amounts);
 
             await expect(
                 factory
                     .connect(governance)
-                    .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, delegatees, amounts)
+                    .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, AMOUNT, delegatees, amounts)
             )
                 .to.emit(factory, "PoolFunded")
                 .withArgs(poolAddr, AMOUNT);
@@ -482,7 +472,7 @@ describe("FranchiserPoolFactory", function () {
 
             const tx = await factory
                 .connect(governance)
-                .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, delegatees, amounts);
+                .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, AMOUNT, delegatees, amounts);
             const receipt = await tx.wait();
             const event = receipt?.logs.find(
                 (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash

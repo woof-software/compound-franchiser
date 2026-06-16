@@ -4,24 +4,22 @@ import { network } from "hardhat";
 const { ethers, networkHelpers } = await network.create();
 const { time } = networkHelpers;
 
+const GOVERNANCE_ADDRESS = "0x6d903f6003cca6255D85CcA4D3B5E5146dC33925";
+
 const FREEZE_PERIOD = 10 * 24 * 3600; // 10 days in seconds
 const MAXIMUM_FREEZE_PERIOD = 30 * 24 * 3600; // 30 days in seconds
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 async function deployFixture() {
-    const [
-        governance,
-        coordinator,
-        guardian,
-        delegatee,
-        other
-    ] = await ethers.getSigners();
+    const [, coordinator, guardian, delegatee, other] = await ethers.getSigners();
+
+    await networkHelpers.setBalance(GOVERNANCE_ADDRESS, ethers.parseEther("100"));
+    const governance = await ethers.getImpersonatedSigner(GOVERNANCE_ADDRESS);
 
     const token = await ethers.deployContract("MockVotingToken");
     const poolFactory = await ethers.deployContract("FranchiserPoolFactory", [
         await token.getAddress(),
-        governance.address,
     ]);
 
     const AMOUNT = ethers.parseEther("10000");
@@ -76,12 +74,7 @@ const restoreDelegated = async () => await networkHelpers.loadFixture(delegatedF
 describe("FranchiserPool", function () {
     describe("deployment", function () {
         it("reverts if freeze period is below minimum", async function () {
-            const { governance, coordinator, guardian, token, pool } = await restore();
-
-            const poolFactory = await ethers.deployContract(
-                "FranchiserPoolFactory",
-                [await token.getAddress(), governance.address]
-            );
+            const { governance, coordinator, guardian, poolFactory, pool } = await restore();
 
             await expect(
                 poolFactory.connect(governance).createPool(
@@ -89,18 +82,13 @@ describe("FranchiserPool", function () {
                     guardian.address,
                     5n,
                     FREEZE_PERIOD - 1, // too short
-                    0n
+                    1n
                 )
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooShort");
         });
 
         it("reverts if freeze period is above maximum", async function () {
-            const { governance, coordinator, guardian, token, pool } = await restore();
-
-            const poolFactory = await ethers.deployContract(
-                "FranchiserPoolFactory",
-                [await token.getAddress(), governance.address]
-            );
+            const { governance, coordinator, guardian, poolFactory, pool } = await restore();
 
             await expect(
                 poolFactory.connect(governance).createPool(
@@ -108,7 +96,7 @@ describe("FranchiserPool", function () {
                     guardian.address,
                     5n,
                     MAXIMUM_FREEZE_PERIOD + 1, // too long
-                    0n
+                    1n
                 )
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooLong");
         });
@@ -150,7 +138,7 @@ describe("FranchiserPool", function () {
                     guardian.address,
                     5n,
                     FREEZE_PERIOD,
-                    0n
+                    1n
                 )
             ).to.be.revertedWithCustomError(pool, "ZeroAddress");
         });
@@ -164,21 +152,74 @@ describe("FranchiserPool", function () {
                     ethers.ZeroAddress,
                     5n,
                     FREEZE_PERIOD,
-                    0n
+                    1n
                 )
             ).to.be.revertedWithCustomError(pool, "ZeroAddress");
+        });
+
+        it("reverts if coordinator equals guardian", async function () {
+            const { pool, governance, coordinator, poolFactory, AMOUNT } = await restore();
+
+            await expect(
+                poolFactory.connect(governance).createPool(
+                    coordinator.address,
+                    coordinator.address,
+                    5n,
+                    FREEZE_PERIOD,
+                    AMOUNT
+                )
+            ).to.be.revertedWithCustomError(pool, "CoordinatorGuardianCollision");
+        });
+
+        it("reverts if maxDelegatees is 0", async function () {
+            const { pool, governance, coordinator, guardian, poolFactory } = await restore();
+
+            await expect(
+                poolFactory.connect(governance).createPool(
+                    coordinator.address,
+                    guardian.address,
+                    0n,
+                    FREEZE_PERIOD,
+                    0n
+                )
+            ).to.be.revertedWithCustomError(pool, "ZeroAmount");
+        });
+
+        it("reverts with MaxDelegateesExceedsLimit when maxDelegatees_ exceeds DELEGATEES_LIMIT", async function () {
+            const { pool, governance, coordinator, guardian, poolFactory } = await restore();
+            const limit = await pool.DELEGATEES_LIMIT();
+
+            await expect(
+                poolFactory.connect(governance).createPool(
+                    coordinator.address,
+                    guardian.address,
+                    limit + 1n,
+                    FREEZE_PERIOD,
+                    1n
+                )
+            )
+                .to.be.revertedWithCustomError(pool, "MaxDelegateesExceedsLimit")
+                .withArgs(limit + 1n, limit);
         });
     });
 
     describe("delegate", function () {
-        it("reverts if caller is not the coordinator", async function () {
+        it("reverts if caller is not the coordinator or factory", async function () {
             const { pool, other, delegatee } = await restore();
 
             await expect(
                 pool.connect(other).delegate(delegatee.address, 100n)
             )
-                .to.be.revertedWithCustomError(pool, "NotCoordinator")
-                .withArgs(other.address, await pool.coordinator());
+                .to.be.revertedWithCustomError(pool, "NotCoordinatorOrFactory")
+                .withArgs(other.address, await pool.coordinator(), await pool.factory());
+        });
+
+        it("reverts if delegatee is zero address", async function () {
+            const { pool, coordinator } = await restore();
+
+            await expect(
+                pool.connect(coordinator).delegate(ethers.ZeroAddress, 100n)
+            ).to.be.revertedWithCustomError(pool, "ZeroAddress");
         });
 
         it("creates a franchiser clone and adds delegatee to active set", async function () {
@@ -280,8 +321,8 @@ describe("FranchiserPool", function () {
                     .connect(coordinator)
                     .delegate(delegatee2.address, ethers.parseEther("100"))
             )
-                .to.be.revertedWithCustomError(smallPool, "MaxDelegateesReached")
-                .withArgs(1n);
+                .to.be.revertedWithCustomError(smallPool, "MaxDelegateesExceeded")
+                .withArgs(1n, 1n);
         });
 
         it("reverts if amount is zero", async function () {
@@ -402,6 +443,36 @@ describe("FranchiserPool", function () {
             )
                 .to.be.revertedWithCustomError(pool, "NotCoordinator")
                 .withArgs(other.address, await pool.coordinator());
+        });
+
+        it("reverts if from equals to", async function () {
+            const { pool, coordinator, delegatee } = await restoreDelegated();
+
+            await expect(
+                pool.connect(coordinator).reassign(delegatee.address, delegatee.address, 100n)
+            )
+                .to.be.revertedWithCustomError(pool, "AddressCollision")
+                .withArgs(delegatee.address);
+        });
+
+        it("reverts if from or to is zero address", async function () {
+            const { pool, coordinator, delegatee } = await restoreDelegated();
+
+            await expect(
+                pool.connect(coordinator).reassign(ethers.ZeroAddress, delegatee.address, 100n)
+            ).to.be.revertedWithCustomError(pool, "ZeroAddress");
+
+            await expect(
+                pool.connect(coordinator).reassign(delegatee.address, ethers.ZeroAddress, 100n)
+            ).to.be.revertedWithCustomError(pool, "ZeroAddress");
+        });
+
+        it("reverts if amount is zero", async function () {
+            const { pool, coordinator, delegatee, other } = await restoreDelegated();
+
+            await expect(
+                pool.connect(coordinator).reassign(delegatee.address, other.address, 0n)
+            ).to.be.revertedWithCustomError(pool, "ZeroAmount");
         });
 
         it("recalls from old delegatee and delegates to new one", async function () {
@@ -555,15 +626,37 @@ describe("FranchiserPool", function () {
         });
     });
 
-    describe("emergencyRecallDelegatees", function () {
+    describe("emergencyRecallDelegates", function () {
         it("reverts if caller is not the guardian", async function () {
             const { pool, other, delegatee } = await restoreDelegated();
 
             await expect(
-                pool.connect(other).emergencyRecallDelegatees([delegatee.address])
+                pool.connect(other).emergencyRecallDelegates([delegatee.address])
             )
                 .to.be.revertedWithCustomError(pool, "NotGuardian")
                 .withArgs(other.address, await pool.guardian());
+        });
+
+        it("reverts if delegatees array is empty", async function () {
+            const { pool, guardian } = await restoreDelegated();
+
+            await expect(
+                pool.connect(guardian).emergencyRecallDelegates([])
+            ).to.be.revertedWithCustomError(pool, "ZeroAmount");
+        });
+
+        it("reverts if delegatees length >= maxDelegatees", async function () {
+            const { pool, guardian, delegatee, MAX_DELEGATEES } = await restoreDelegated();
+
+            const addrs = Array.from({ length: Number(MAX_DELEGATEES) }, (_, i) =>
+                ethers.Wallet.createRandom().address
+            );
+
+            await expect(
+                pool.connect(guardian).emergencyRecallDelegates(addrs)
+            )
+                .to.be.revertedWithCustomError(pool, "MaxDelegateesExceeded")
+                .withArgs(MAX_DELEGATEES, MAX_DELEGATEES);
         });
 
         it("recalls tokens from specified delegatees back to pool", async function () {
@@ -580,7 +673,7 @@ describe("FranchiserPool", function () {
             await expect(
                 pool
                     .connect(guardian)
-                    .emergencyRecallDelegatees([delegatee.address])
+                    .emergencyRecallDelegates([delegatee.address])
             ).to.changeTokenBalances(
                 ethers,
                 token,
@@ -593,7 +686,7 @@ describe("FranchiserPool", function () {
             const { pool, guardian, delegatee } = await restoreDelegated();
 
             await expect(
-                pool.connect(guardian).emergencyRecallDelegatees([delegatee.address])
+                pool.connect(guardian).emergencyRecallDelegates([delegatee.address])
             )
                 .to.emit(pool, "DelegateeDeactivated")
                 .withArgs(delegatee.address);
@@ -603,7 +696,7 @@ describe("FranchiserPool", function () {
             const { pool, guardian, other } = await restoreDelegated();
 
             await expect(
-                pool.connect(guardian).emergencyRecallDelegatees([other.address])
+                pool.connect(guardian).emergencyRecallDelegates([other.address])
             ).to.not.emit(pool, "DelegateeDeactivated");
         });
 
@@ -615,7 +708,7 @@ describe("FranchiserPool", function () {
             // Guardian can still recall even while frozen
             await pool
                 .connect(guardian)
-                .emergencyRecallDelegatees([delegatee.address]);
+                .emergencyRecallDelegates([delegatee.address]);
 
             expect(await pool.activeDelegatees()).to.not.include(delegatee.address);
         });
@@ -874,6 +967,30 @@ describe("FranchiserPool", function () {
                     .setCoordinator(await pool.getAddress(), ethers.ZeroAddress)
             ).to.be.revertedWithCustomError(pool, "ZeroAddress");
         });
+
+        it("reverts if new coordinator equals the current guardian", async function () {
+            const { pool, poolFactory, governance, guardian } = await restore();
+
+            await expect(
+                poolFactory
+                    .connect(governance)
+                    .setCoordinator(await pool.getAddress(), guardian.address)
+            )
+                .to.be.revertedWithCustomError(pool, "CoordinatorGuardianCollision")
+                .withArgs(guardian.address);
+        });
+
+        it("reverts if new coordinator equals the current coordinator", async function () {
+            const { pool, poolFactory, governance, coordinator } = await restore();
+
+            await expect(
+                poolFactory
+                    .connect(governance)
+                    .setCoordinator(await pool.getAddress(), coordinator.address)
+            )
+                .to.be.revertedWithCustomError(pool, "AddressCollision")
+                .withArgs(coordinator.address);
+        });
     });
 
     describe("setGuardian", function () {
@@ -910,6 +1027,30 @@ describe("FranchiserPool", function () {
                     .setGuardian(await pool.getAddress(), ethers.ZeroAddress)
             ).to.be.revertedWithCustomError(pool, "ZeroAddress");
         });
+
+        it("reverts if new guardian equals the current coordinator", async function () {
+            const { pool, poolFactory, governance, coordinator } = await restore();
+
+            await expect(
+                poolFactory
+                    .connect(governance)
+                    .setGuardian(await pool.getAddress(), coordinator.address)
+            )
+                .to.be.revertedWithCustomError(pool, "CoordinatorGuardianCollision")
+                .withArgs(coordinator.address);
+        });
+
+        it("reverts if new guardian equals the current guardian", async function () {
+            const { pool, poolFactory, governance, guardian } = await restore();
+
+            await expect(
+                poolFactory
+                    .connect(governance)
+                    .setGuardian(await pool.getAddress(), guardian.address)
+            )
+                .to.be.revertedWithCustomError(pool, "AddressCollision")
+                .withArgs(guardian.address);
+        });
     });
 
     describe("setMaxDelegatees", function () {
@@ -927,6 +1068,17 @@ describe("FranchiserPool", function () {
             await expect(
                 poolFactory.connect(governance).setMaxDelegatees(await pool.getAddress(), 0n)
             ).to.be.revertedWithCustomError(pool, "ZeroAmount");
+        });
+
+        it("reverts with MaxDelegateesExceedsLimit when maxDelegatees_ exceeds DELEGATEES_LIMIT", async function () {
+            const { pool, poolFactory, governance } = await restore();
+            const limit = await pool.DELEGATEES_LIMIT();
+
+            await expect(
+                poolFactory.connect(governance).setMaxDelegatees(await pool.getAddress(), limit + 1n)
+            )
+                .to.be.revertedWithCustomError(pool, "MaxDelegateesExceedsLimit")
+                .withArgs(limit + 1n, limit);
         });
 
         it("updates maxDelegatees and emits MaxDelegateesSet", async function () {
