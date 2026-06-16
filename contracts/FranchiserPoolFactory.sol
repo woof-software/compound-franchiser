@@ -69,6 +69,10 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         uint256 amount
     ) public onlyGovernance returns (FranchiserPool pool) {
         if (amount == 0) revert ZeroAmount();
+        if (
+            coordinator_ == address(this)
+            || guardian_ == address(this)
+        ) revert FactoryAsActor(coordinator_, guardian_);
 
         pool = new FranchiserPool(
             votingToken,

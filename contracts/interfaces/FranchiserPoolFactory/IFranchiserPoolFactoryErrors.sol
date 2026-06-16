@@ -28,4 +28,9 @@ interface IFranchiserPoolFactoryErrors {
     /// @param count The number of delegatees provided.
     /// @param maximum The maximum number of delegatees allowed.
     error MaxDelegateesExceeded(uint256 count, uint256 maximum);
+
+    /// @notice Thrown when creating a pool with a coordinator or guardian address equal to the factory address.
+    /// @param coordinator The provided coordinator address.
+    /// @param guardian The provided guardian address.
+    error FactoryAsActor(address coordinator, address guardian);
 }
