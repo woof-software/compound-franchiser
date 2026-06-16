@@ -8,8 +8,8 @@ The system ships two parallel delegation paths:
 - **FranchiserPool / FranchiserPoolFactory** — governance-controlled; a Coordinator distributes tokens from a shared pool to multiple top-level delegatees, with a Guardian providing emergency freeze and recall capabilities.
 
 - **License:** GPL-3.0-or-later
-- **Solidity:** 0.8.30
 - **Security contact:** See the [Trail of Bits audit](https://github.com/NoahZinsmeister/franchiser/compare/e652c7fe1716bc8e9ca1bb929238313eabb9ea52...main) of the original Franchiser codebase.
+- **Solidity:** 0.8.35
 
 ---
 

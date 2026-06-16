@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.30;
+pragma solidity 0.8.35;
 
 import { IFranchiserErrors } from "./interfaces/Franchiser/IFranchiserErrors.sol";
 import { IFranchiserEvents } from "./interfaces/Franchiser/IFranchiserEvents.sol";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8;
+pragma solidity 0.8.35;
 
 /// @title Events emitted by the FranchiserPool contract.
 interface IFranchiserPoolEvents {

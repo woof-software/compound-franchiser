@@ -8,7 +8,7 @@ export default defineConfig({
     solidity: {
         profiles: {
             default: {
-                version: "0.8.30",
+                version: "0.8.35",
                 settings: {
                     optimizer: {
                         enabled: true,
@@ -17,7 +17,7 @@ export default defineConfig({
                 }
             },
             production: {
-                version: "0.8.30",
+                version: "0.8.35",
                 settings: {
                     optimizer: {
                         enabled: true,
