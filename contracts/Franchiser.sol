@@ -10,15 +10,26 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVotingToken } from "./interfaces/IVotingToken.sol";
 
+/**
+ * @title Franchiser contract for recursive delegation of voting tokens.
+ * @author WOOF! Software
+ * @custom:security-contact dmitriy@woof.software
+ * @notice This contract allows for the delegation of voting tokens in a recursive manner,
+ *         enabling complex delegation hierarchies.
+ */ 
 contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Clones for address;
     using SafeERC20 for IERC20;
 
-    /// @inheritdoc IFranchiser
+    /// @notice The value responsible for decaying `maximumSubDelegatees`.
+    /// @dev At each nesting level, `maximumSubDelegatees` is divided by this factor.
+    /// @return The `DECAY_FACTOR`.
     uint96 public constant DECAY_FACTOR = 2;
 
-    /// @inheritdoc IFranchiser
+    /// @notice The implementation contract used to clone Franchiser contracts.
+    /// @dev Used as part of an EIP-1167 proxy minimal proxy setup.
+    /// @return The Franchiser implementation contract.
     Franchiser public immutable franchiserImplementation;
 
     /// @notice The `votingToken` of the contract.
@@ -26,9 +37,18 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
     IVotingToken public immutable votingToken;
 
     address private _delegator;
-    /// @inheritdoc IFranchiser
+
+    /// @notice The `delegatee` of the contract.
+    /// @dev Never changes after being set via initialize.
+    ///      Packed with `maximumSubDelegatees`.
+    /// @return The `delegatee`.
     address public delegatee;
-    /// @inheritdoc IFranchiser
+
+    /// @notice The maximum number of `subDelegatee` addresses that the contract
+    ///         can have at any one time.
+    /// @dev Never changes after being set via initialize.
+    ///      Packed with `delegatee`.
+    /// @return The maximum number of `subDelegatee` addresses.
     uint96 public maximumSubDelegatees;
 
     EnumerableSet.AddressSet private _subDelegatees;
@@ -54,6 +74,8 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         _;
     }
 
+    /// @notice The constructor sets the `votingToken` and the `franchiserImplementation`.
+    /// @param votingToken_ The `votingToken` of the contract.
     constructor(IVotingToken votingToken_)
         Ownable(msg.sender)
     {
@@ -64,7 +86,12 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         delegatee = address(1);
     }
 
-    /// @inheritdoc IFranchiser
+    /// @notice Can be called once to set the contract's `delegator`, `owner`,
+    ///         `delegatee`, and `maximumSubDelegatees`.
+    /// @dev The `owner` is always the sender of the call.
+    /// @param delegator_ The `delegator`.
+    /// @param delegatee_ The `delegatee`.
+    /// @param maximumSubDelegatees_ The maximum number of `subDelegatee` addresses.
     function initialize(
         address delegator_,
         address delegatee_,
@@ -91,7 +118,10 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         );
     }
 
-    /// @inheritdoc IFranchiser
+    /// @notice Calls initialize with `delegator` set to address(0).
+    /// @dev Used for all Franchiser initialization beyond the first level of nesting.
+    /// @param delegatee_ The `delegatee`.
+    /// @param maximumSubDelegatees_ The maximum number of `subDelegatee` addresses.
     function initialize(address delegatee_, uint96 maximumSubDelegatees_)
         external
     {
@@ -102,7 +132,11 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         return bytes20(subDelegatee);
     }
 
-    /// @inheritdoc IFranchiser
+    /// @notice Looks up the Franchiser associated with the `subDelegatee`.
+    /// @dev Returns the address of the Franchiser even it it does not yet exist,
+    ///      thanks to CREATE2.
+    /// @param subDelegatee The target `subDelegatee`.
+    /// @return franchiser The Franchiser contract, whether or not it exists yet.
     function getFranchiser(address subDelegatee)
         public
         view
@@ -117,7 +151,12 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
             );
     }
 
-    /// @inheritdoc IFranchiser
+    /// @notice Delegates `amount` of `votingToken` to `subDelegatee`.
+    /// @dev Can only be called by the `delegatee`. The Franchiser associated
+    ///      with the `subDelegatee` must not already be active.
+    /// @param subDelegatee The address that will receive voting power.
+    /// @param amount The amount of voting power.
+    /// @return franchiser The Franchiser contract.
     function subDelegate(address subDelegatee, uint256 amount)
         public
         onlyDelegatee
@@ -143,7 +182,10 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         IERC20(address(votingToken)).safeTransfer(address(franchiser), amount);
     }
 
-    /// @inheritdoc IFranchiser
+    /// @notice Calls subDelegate many times.
+    /// @param subDelegatees_ The addresses that will receive voting power.
+    /// @param amounts The amounts of voting power.
+    /// @return franchisers The Franchiser contracts.
     function subDelegateMany(
         address[] calldata subDelegatees_,
         uint256[] calldata amounts
@@ -158,7 +200,10 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         }
     }
 
-    /// @inheritdoc IFranchiser
+    /// @notice Un-delegates to `subDelegatee`.
+    /// @dev Can only be called by the `delegatee`. No-op if the Franchiser associated
+    ///      with the `subDelegatee` does not exist, or the address is not a `subDelegatee`.
+    /// @param subDelegatee The address that voting power will be removed from.
     function unSubDelegate(address subDelegatee) external onlyDelegatee {
         _unSubDelegate(subDelegatee, false);
     }
@@ -183,7 +228,8 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
             franchiser.recall(address(this));
     }
 
-    /// @inheritdoc IFranchiser
+    /// @notice Calls unSubDelegate many times.
+    /// @param subDelegatees_ The addresses that voting power will be removed from.
     function unSubDelegateMany(address[] calldata subDelegatees_)
         external
         onlyDelegatee
@@ -194,7 +240,10 @@ contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable {
         }
     }
 
-    /// @inheritdoc IFranchiser
+    /// @notice Transfers the contract's balance of `votingToken`, as well as the balance
+    ///         of all nested Franchiser contracts associated with each `subDelegatee`, to `to`.
+    /// @dev Can only be called by the `owner`.
+    /// @param to The address that will receive tokens.
     function recall(address to) external onlyOwner {
         uint256 numberOfSubDelegatees = _subDelegatees.length();
         while (numberOfSubDelegatees != 0) {

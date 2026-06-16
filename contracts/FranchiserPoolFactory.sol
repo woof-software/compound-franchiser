@@ -8,31 +8,38 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVotingToken } from "./interfaces/IVotingToken.sol";
 import { FranchiserPool } from "./FranchiserPool.sol";
 
-/// @notice Governance's sole entry point for creating, funding, and halting
-///         FranchiserPool programs, and for adjusting their parameters.
-///         All functions are restricted to the immutable governance address.
+/**
+ * @title FranchiserPoolFactory contract for managing FranchiserPool programs.
+ * @author WOOF! Software
+ * @custom:security-contact dmitriy@woof.software
+ * @notice Governance's sole entry point for creating, funding, and halting
+ *         FranchiserPool programs, and for adjusting their parameters.
+ *         All functions are restricted to the immutable governance address.
+ */
 contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolFactoryEvents {
     using SafeERC20 for IERC20;
 
-    /// @inheritdoc IFranchiserPoolFactory
-    uint256 public constant MINIMUM_FREEZE_PERIOD = 10 days;
     /// @notice The `votingToken` of the contract.
     /// @return The `votingToken`.
     IERC20 public immutable votingToken;
 
-    /// @inheritdoc IFranchiserPoolFactory
-    address public immutable governance;
+    /// @notice The governance address (Compound timelock).
+    address public constant governance = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925;
 
     /// @inheritdoc IFranchiserPoolFactory
     mapping(address => bool) public isKnownPool;
 
     address[] internal _pools;
 
+    /// @notice Checks that the caller is the governance address.
+    /// @dev Reverts with NotGovernance if the caller is not governance.
     modifier onlyGovernance() {
         if (msg.sender != governance) revert NotGovernance(msg.sender, governance);
         _;
     }
 
+    /// @notice Checks that `pool` is a known pool deployed by this factory.
+    /// @dev Reverts with UnknownPool if `pool` is not in the `_pools` set.
     modifier onlyKnownPool(address pool) {
         if (!isKnownPool[pool]) revert UnknownPool(pool);
         _;
@@ -43,11 +50,11 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         if (governance_ == address(0)) revert ZeroAddress();
         governance = governance_;
     }
+    /// @notice The constructor sets the `votingToken`.
+    /// @param votingToken_ The `votingToken` of the contract.
 
-    // -------------------------------------------------------------------------
-    // Governance functions
-    // -------------------------------------------------------------------------
         votingToken = votingToken_;
+    }
 
     function _createPool(
         address coordinator_,
@@ -96,7 +103,15 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         }
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
+    /// @notice Deploys a new FranchiserPool and funds initial delegatees in a single transaction.
+    /// @dev Requires governance to have approved this contract for `amount`.
+    /// @param coordinator_ The initial coordinator address.
+    /// @param guardian_ The initial guardian address.
+    /// @param maxDelegatees_ The maximum number of simultaneous top-level delegatees.
+    /// @param freezePeriod_ The initial emergency freeze duration.
+    /// @param delegatees The initial delegatees to fund.
+    /// @param amounts The initial amounts of COMP to transfer from governance to each delegatee.
+    /// @return pool The newly deployed FranchiserPool.
     function createPoolAndFund(
         address coordinator_,
         address guardian_,
@@ -138,56 +153,57 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         return _pools;
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
+    /// @notice Transfers additional COMP from governance to an existing pool.
+    /// @dev Requires governance to have approved this contract for `amount`.
     function fundPool(address pool, uint256 amount) external onlyGovernance onlyKnownPool(pool) {
         IERC20(address(votingToken)).safeTransferFrom(msg.sender, pool, amount);
 
         emit PoolFunded(pool, amount);
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
+    /// @notice Transfer `amount` of COMP from factory balance to `pool`.
+    /// @dev Should be used if COMP was transferred to the factory outside of `fundPool`
     function transferToPool(address pool, uint256 amount) external onlyGovernance onlyKnownPool(pool) {
         IERC20(address(votingToken)).safeTransfer(pool, amount);
 
         emit PoolFunded(pool, amount);
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
+    /// @notice Recalls all delegatees of `pool` and transfers all COMP to `recipient`.
     function haltPool(address pool, address recipient) external onlyGovernance onlyKnownPool(pool) {
         FranchiserPool(pool).halt(recipient);
 
         emit PoolHalted(pool, recipient);
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
+    /// @notice Replaces the coordinator of `pool`.
     function setCoordinator(address pool, address coordinator_) external onlyGovernance onlyKnownPool(pool) {
         FranchiserPool(pool).setCoordinator(coordinator_);
 
         emit CoordinatorUpdated(pool, coordinator_);
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
+    /// @notice Replaces the guardian of `pool`.
     function setGuardian(address pool, address guardian_) external onlyGovernance onlyKnownPool(pool) {
         FranchiserPool(pool).setGuardian(guardian_);
 
         emit GuardianUpdated(pool, guardian_);
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
+    /// @notice Updates the maximum delegatee cap of `pool`.
     function setMaxDelegatees(address pool, uint256 maxDelegatees_) external onlyGovernance onlyKnownPool(pool) {
         FranchiserPool(pool).setMaxDelegatees(maxDelegatees_);
 
         emit MaxDelegateesUpdated(pool, maxDelegatees_);
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
+    /// @notice Updates the freeze period of `pool`.
     function setFreezePeriod(address pool, uint256 freezePeriod_) external onlyGovernance onlyKnownPool(pool) {
         FranchiserPool(pool).setFreezePeriod(freezePeriod_);
 
         emit FreezePeriodUpdated(pool, freezePeriod_);
     }
 
-    /// @inheritdoc IFranchiserPoolFactory
     function unfreezePool(address pool) external onlyGovernance onlyKnownPool(pool) {
         FranchiserPool(pool).unfreeze();
 

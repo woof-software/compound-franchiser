@@ -10,71 +10,96 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IVotingToken } from "./interfaces/IVotingToken.sol";
 import { Franchiser } from "./Franchiser.sol";
 
-/// @notice Manages a pool of idle COMP and distributes it to top-level delegatees via
-///         Franchiser instances. Deployed and controlled by FranchiserPoolFactory on
-///         behalf of Governance. The Coordinator manages delegations; the Guardian
-///         provides emergency recall and freeze capabilities.
+/**
+ * @title FranchiserPool contract for managing a pool of idle COMP and distributing it to top-level delegatees.
+ * @author WOOF! Software
+ * @custom:security-contact dmitriy@woof.software
+ * @notice Manages a pool of idle COMP and distributes it to top-level delegatees via
+ *         Franchiser instances. Deployed and controlled by FranchiserPoolFactory on
+ *         behalf of Governance. The Coordinator manages delegations; the Guardian
+ *         provides emergency recall and freeze capabilities.
+ */
 contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     using Clones for address;
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice The maximum number of sub-delegatees a pool-owned Franchiser can have.
     uint96 public constant INITIAL_MAXIMUM_SUBDELEGATEES = 1;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Hard upper limit on `maxDelegatees` to ensure _recallAll always fits in one block.
+    /// @dev Benchmarked worst-case (100 delegatees each with 1 active sub-delegatee): 11.15 M gas,
+    ///      which is 66% of the 16.7 M block gas cap observed on mainnet. The break-even is ~150.
+    uint256 public constant DELEGATEES_LIMIT = 100;
+
+    /// @notice The minimum duration for an emergency freeze.
     uint256 public constant MINIMUM_FREEZE_PERIOD = 10 days;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice The maximum duration for an emergency freeze.
     uint256 public constant MAXIMUM_FREEZE_PERIOD = 30 days;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice The Franchiser implementation used to clone top-level Franchiser contracts.
     Franchiser public immutable franchiserImplementation;
 
-    /// @inheritdoc IFranchiserPool
     /// @notice The `votingToken` of the contract.
     /// @return The `votingToken`.
     IERC20 public immutable votingToken;
 
+    /// @notice The FranchiserPoolFactory that deployed and controls this pool.
     address public immutable factory;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice The coordinator address authorized to delegate, recall, and reassign.
     address public coordinator;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice The guardian address authorized to emergency-recall and freeze.
     address public guardian;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice The maximum number of simultaneous top-level delegatees.
     uint256 public maxDelegatees;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice The duration applied to future emergency freezes.
     uint256 public freezePeriod;
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice The timestamp until which coordinator actions are blocked.
     uint256 public frozenUntil;
 
+    /// @dev The set of currently active top-level delegatees (i.e., those with a Franchiser that has a non-zero COMP balance).
     EnumerableSet.AddressSet private _activeDelegatees;
 
+    /// @notice Checks that the caller is the factory that deployed this pool.
+    /// @dev Reverts with NotFactory if the caller is not the factory.
     modifier onlyFactory() {
         if (msg.sender != factory) revert NotFactory(msg.sender, factory);
         _;
     }
 
+    /// @notice Checks that the caller is the coordinator.
+    /// @dev Reverts with NotCoordinator if the caller is not the coordinator.
     modifier onlyCoordinator() {
         if (msg.sender != coordinator) revert NotCoordinator(msg.sender, coordinator);
         _;
     }
 
+    /// @notice Checks that the caller is the guardian.
+    /// @dev Reverts with NotGuardian if the caller is not the guardian.
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert NotGuardian(msg.sender, guardian);
         _;
     }
 
+    /// @notice Checks that the pool is not currently frozen.
+    /// @dev Reverts with PoolFrozen if the current timestamp is less than `frozenUntil`.
     modifier whenNotFrozen() {
         if (block.timestamp < frozenUntil) revert PoolFrozen(frozenUntil);
         _;
     }
 
+    /// @notice The constructor sets the `votingToken`, `coordinator`, `guardian`, `maxDelegatees`, and `freezePeriod`.
+    /// @param votingToken_ The `votingToken` of the contract.
+    /// @param coordinator_ The initial coordinator address.
+    /// @param guardian_ The initial guardian address.
+    /// @param maxDelegatees_ The maximum number of simultaneous top-level delegatees.
+    /// @param freezePeriod_ The initial emergency freeze duration (>= MINIMUM_FREEZE_PERIOD).
     constructor(
         IVotingToken votingToken_,
         address coordinator_,
@@ -103,16 +128,13 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         emit FreezePeriodSet(0, freezePeriod_);
     }
 
-    // -------------------------------------------------------------------------
-    // Views
-    // -------------------------------------------------------------------------
-
-    /// @inheritdoc IFranchiserPool
+    /// @notice Returns the current set of active top-level delegatee addresses.
     function activeDelegatees() external view returns (address[] memory) {
         return _activeDelegatees.values();
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Returns the deterministic Franchiser address for a given delegatee.
+    /// @dev The contract may or may not be deployed yet.
     function getFranchiser(address delegatee) public view returns (Franchiser) {
         return Franchiser(
             address(franchiserImplementation).predictDeterministicAddress(
@@ -174,7 +196,9 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     // Coordinator functions
     // -------------------------------------------------------------------------
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Delegates `amount` of COMP from the pool to `delegatee`.
+    /// @dev Clones and initializes a Franchiser on first use. Reverts if the
+    ///      delegatee cap is reached when adding a new delegatee.
     function delegate(address delegatee, uint256 amount)
         external
         whenNotFrozen
@@ -185,12 +209,12 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         _delegate(delegatee, amount);
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Fully recalls one delegatee's COMP (including sub-delegatee subtree) back to the pool.
     function recall(address delegatee) external onlyCoordinator whenNotFrozen {
         _recallDelegatee(delegatee);
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Recalls all COMP from `from` and delegates `amount` to `to` atomically.
     function reassign(address from, address to, uint256 amount)
         external
         onlyCoordinator
@@ -204,8 +228,8 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     // Guardian functions
     // -------------------------------------------------------------------------
 
-    /// @inheritdoc IFranchiserPool
-    function emergencyRecallDelegatees(address[] calldata delegatees)
+    /// @notice Recalls COMP from the specified delegatees back to the pool.
+    function emergencyRecallDelegates(address[] calldata delegatees)
         external
         onlyGuardian
     {
@@ -216,7 +240,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         }
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Recalls all delegatees and freezes coordinator actions for `freezePeriod` seconds.
     function emergencyFreezeAndRecallPool() external onlyGuardian {
         _recallAll();
 
@@ -226,7 +250,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         emit EmergencyFreeze(until);
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Freezes coordinator actions for `freezePeriod` seconds without recalling delegatees.
     function emergencyFreezePool() external onlyGuardian {
         uint256 until = block.timestamp + freezePeriod;
         frozenUntil = until;
@@ -238,20 +262,20 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     // Factory-only functions
     // -------------------------------------------------------------------------
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Recalls all delegatees and transfers the entire COMP balance to `recipient`.
     function halt(address recipient) external onlyFactory {
         if (recipient == address(0)) revert ZeroAddress();
         _recallAll();
 
         uint256 balance = votingToken.balanceOf(address(this));
         if (balance > 0) {
-            IERC20(address(votingToken)).safeTransfer(recipient, balance);
+            votingToken.safeTransfer(recipient, balance);
         }
 
         emit Halted(recipient);
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Replaces the coordinator address immediately.
     function setCoordinator(address coordinator_) external onlyFactory {
         if (coordinator_ == address(0)) revert ZeroAddress();
         emit CoordinatorSet(coordinator, coordinator_);
@@ -259,7 +283,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         coordinator = coordinator_;
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Replaces the guardian address immediately.
     function setGuardian(address guardian_) external onlyFactory {
         if (guardian_ == address(0)) revert ZeroAddress();
         emit GuardianSet(guardian, guardian_);
@@ -267,7 +291,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         guardian = guardian_;
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Updates the maximum delegatee cap. Lowering does not recall anyone.
     function setMaxDelegatees(uint256 maxDelegatees_) external onlyFactory {
         if (maxDelegatees_ == 0) revert ZeroAmount();
 
@@ -276,7 +300,8 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         maxDelegatees = maxDelegatees_;
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Updates the freeze period applied to future emergency freezes.
+    /// @dev Reverts if `freezePeriod_` is below `MINIMUM_FREEZE_PERIOD` or above `MAXIMUM_FREEZE_PERIOD`.
     function setFreezePeriod(uint256 freezePeriod_) external onlyFactory {
         if (freezePeriod_ < MINIMUM_FREEZE_PERIOD)
             revert FreezePeriodTooShort(freezePeriod_, MINIMUM_FREEZE_PERIOD);
@@ -288,7 +313,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         freezePeriod = freezePeriod_;
     }
 
-    /// @inheritdoc IFranchiserPool
+    /// @notice Lifts an active freeze early, re-enabling coordinator actions.
     function unfreeze() external onlyFactory {
         frozenUntil = 0;
         emit PoolUnfrozen();
