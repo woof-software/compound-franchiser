@@ -102,6 +102,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @param maxDelegatees_ The maximum number of simultaneous top-level delegatees.
     /// @param freezePeriod_ The initial emergency freeze duration.
     /// @param delegatees The initial delegatees to fund.
+    /// @param totalAmount The total initial COMP amount to transfer from governance to the pool.
     /// @param amounts The initial amounts of COMP to transfer from governance to each delegatee.
     /// @return pool The newly deployed FranchiserPool.
     function createPoolAndFund(
@@ -109,6 +110,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         address guardian_,
         uint256 maxDelegatees_,
         uint256 freezePeriod_,
+        uint256 totalAmount,
         address[] calldata delegatees,
         uint256[] calldata amounts
     ) external onlyGovernance returns (FranchiserPool pool) {
@@ -119,22 +121,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         if (delegatees.length > maxDelegatees_)
             revert MaxDelegateesExceeded(delegatees.length, maxDelegatees_);
 
-        uint256 totalAmount = 0;
-        for (uint256 i = 0; i < delegatees.length; i++) {
-            if (amounts[i] == 0) revert ZeroAmount();
-            totalAmount += amounts[i];
-        }
-
-        pool = _createPool(coordinator_, guardian_, maxDelegatees_, freezePeriod_);
-
-        if (totalAmount > 0) {
-            IERC20(address(votingToken)).safeTransferFrom(
-                msg.sender,
-                address(pool),
-                totalAmount
-            );
-
-            emit PoolFunded(address(pool), totalAmount);
+        pool = createPool(coordinator_, guardian_, maxDelegatees_, freezePeriod_, totalAmount);
 
         for (uint256 i; i < delegatees.length; ++i) {
             FranchiserPool(address(pool)).delegate(delegatees[i], amounts[i]);
