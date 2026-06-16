@@ -5,13 +5,17 @@
 #### License: GPL-3.0-or-later
 
 ```solidity
-contract FranchiserPool is IFranchiserPool, FranchiserImmutableState
+contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents
 ```
+
+Author: WOOF! Software
 
 Manages a pool of idle COMP and distributes it to top-level delegatees via
 Franchiser instances. Deployed and controlled by FranchiserPoolFactory on
 behalf of Governance. The Coordinator manages delegations; the Guardian
 provides emergency recall and freeze capabilities.
+security-contact: dmitriy@woof.software
+
 ## Constants info
 
 ### INITIAL_MAXIMUM_SUBDELEGATEES (0xe95c4d36)
@@ -20,21 +24,31 @@ provides emergency recall and freeze capabilities.
 uint96 constant INITIAL_MAXIMUM_SUBDELEGATEES = 1
 ```
 
+The maximum number of sub-delegatees a pool-owned Franchiser can have.
+### DELEGATEES_LIMIT (0xa66dc3d2)
 
+```solidity
+uint256 constant DELEGATEES_LIMIT = 100
+```
+
+Hard upper limit on `maxDelegatees` to ensure _recallAll always fits in one block.
+
+Benchmarked worst-case (100 delegatees each with 1 active sub-delegatee): 11.15 M gas,
+which is 66% of the 16.7 M block gas cap observed on mainnet. The break-even is ~150.
 ### MINIMUM_FREEZE_PERIOD (0x82d73663)
 
 ```solidity
 uint256 constant MINIMUM_FREEZE_PERIOD = 10 days
 ```
 
-
+The minimum duration for an emergency freeze.
 ### MAXIMUM_FREEZE_PERIOD (0xa27bee2c)
 
 ```solidity
 uint256 constant MAXIMUM_FREEZE_PERIOD = 30 days
 ```
 
-
+The maximum duration for an emergency freeze.
 ## State variables info
 
 ### franchiserImplementation (0xc61bdcd2)
@@ -43,6 +57,21 @@ uint256 constant MAXIMUM_FREEZE_PERIOD = 30 days
 contract Franchiser immutable franchiserImplementation
 ```
 
+The Franchiser implementation used to clone top-level Franchiser contracts.
+### votingToken (0xb0340123)
+
+```solidity
+contract IERC20 immutable votingToken
+```
+
+The `votingToken` of the contract.
+
+
+Return values:
+
+| Name | Type | Description |
+| :--- | :--- | :---------- |
+
 
 ### factory (0xc45a0155)
 
@@ -50,42 +79,42 @@ contract Franchiser immutable franchiserImplementation
 address immutable factory
 ```
 
-
+The FranchiserPoolFactory that deployed and controls this pool.
 ### coordinator (0x0a009097)
 
 ```solidity
 address coordinator
 ```
 
-
+The coordinator address authorized to delegate, recall, and reassign.
 ### guardian (0x452a9320)
 
 ```solidity
 address guardian
 ```
 
-
+The guardian address authorized to emergency-recall and freeze.
 ### maxDelegatees (0xb7f5dc55)
 
 ```solidity
 uint256 maxDelegatees
 ```
 
-
+The maximum number of simultaneous top-level delegatees.
 ### freezePeriod (0x0a3cb663)
 
 ```solidity
 uint256 freezePeriod
 ```
 
-
+The duration applied to future emergency freezes.
 ### frozenUntil (0x6b47ffd7)
 
 ```solidity
 uint256 frozenUntil
 ```
 
-
+The timestamp until which coordinator actions are blocked.
 ## Modifiers info
 
 ### onlyFactory
@@ -94,42 +123,62 @@ uint256 frozenUntil
 modifier onlyFactory()
 ```
 
+Checks that the caller is the factory that deployed this pool.
 
+Reverts with NotFactory if the caller is not the factory.
 ### onlyCoordinator
 
 ```solidity
 modifier onlyCoordinator()
 ```
 
+Checks that the caller is the coordinator.
 
+Reverts with NotCoordinator if the caller is not the coordinator.
 ### onlyGuardian
 
 ```solidity
 modifier onlyGuardian()
 ```
 
+Checks that the caller is the guardian.
 
+Reverts with NotGuardian if the caller is not the guardian.
 ### whenNotFrozen
 
 ```solidity
 modifier whenNotFrozen()
 ```
 
+Checks that the pool is not currently frozen.
 
+Reverts with PoolFrozen if the current timestamp is less than `frozenUntil`.
 ## Functions info
 
 ### constructor
 
 ```solidity
 constructor(
-    IVotingToken votingToken_,
+    IERC20 votingToken_,
     address coordinator_,
     address guardian_,
     uint256 maxDelegatees_,
     uint256 freezePeriod_
-) FranchiserImmutableState(votingToken_)
+)
 ```
 
+The constructor sets the `votingToken`, `coordinator`, `guardian`, `maxDelegatees`, and `freezePeriod`.
+
+
+Parameters:
+
+| Name           | Type            | Description                                                       |
+| :------------- | :-------------- | :---------------------------------------------------------------- |
+| votingToken_   | contract IERC20 | The `votingToken` of the contract.                                |
+| coordinator_   | address         | The initial coordinator address.                                  |
+| guardian_      | address         | The initial guardian address.                                     |
+| maxDelegatees_ | uint256         | The maximum number of simultaneous top-level delegatees.          |
+| freezePeriod_  | uint256         | The initial emergency freeze duration (>= MINIMUM_FREEZE_PERIOD). |
 
 ### activeDelegatees (0xcc8bb7d4)
 
@@ -175,10 +224,10 @@ function reassign(
 ```
 
 Recalls all COMP from `from` and delegates `amount` to `to` atomically.
-### emergencyRecallDelegatees (0xf9cfd787)
+### emergencyRecallDelegates (0x551ed8dd)
 
 ```solidity
-function emergencyRecallDelegatees(
+function emergencyRecallDelegates(
     address[] calldata delegatees
 ) external onlyGuardian
 ```
@@ -234,7 +283,7 @@ function setFreezePeriod(uint256 freezePeriod_) external onlyFactory
 
 Updates the freeze period applied to future emergency freezes.
 
-Reverts if `freezePeriod_` is below `MINIMUM_FREEZE_PERIOD`.
+Reverts if `freezePeriod_` is below `MINIMUM_FREEZE_PERIOD` or above `MAXIMUM_FREEZE_PERIOD`.
 ### unfreeze (0x6a28f000)
 
 ```solidity

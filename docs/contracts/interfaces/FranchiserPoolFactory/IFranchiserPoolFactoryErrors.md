@@ -49,6 +49,13 @@ error ZeroAddress()
 ```
 
 Thrown when a required address argument is the zero address.
+### EmptyArray
+
+```solidity
+error EmptyArray()
+```
+
+Thrown when an array argument is empty.
 ### ArrayLengthMismatch
 
 ```solidity

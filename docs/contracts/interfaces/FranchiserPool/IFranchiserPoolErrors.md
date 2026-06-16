@@ -74,10 +74,10 @@ Parameters:
 | :---------- | :------ | :------------------------------------------------- |
 | frozenUntil | uint256 | The timestamp until which the pool remains frozen. |
 
-### MaxDelegateesReached
+### MaxDelegateesExceeded
 
 ```solidity
-error MaxDelegateesReached(uint256 maxDelegatees)
+error MaxDelegateesExceeded(uint256 provided, uint256 maxDelegatees)
 ```
 
 Thrown when attempting to add a new delegatee beyond the maximum cap.
@@ -87,6 +87,7 @@ Parameters:
 
 | Name          | Type    | Description                               |
 | :------------ | :------ | :---------------------------------------- |
+| provided      | uint256 | The number of delegatees being added.     |
 | maxDelegatees | uint256 | The current maximum number of delegatees. |
 
 ### FreezePeriodTooShort
@@ -135,3 +136,65 @@ error ZeroAmount()
 ```
 
 Thrown when a required amount argument is zero.
+### MaxDelegateesExceedsLimit
+
+```solidity
+error MaxDelegateesExceedsLimit(uint256 provided, uint256 limit)
+```
+
+Thrown when `maxDelegatees_` exceeds the hard upper limit `MAX_DELEGATEES`.
+
+
+Parameters:
+
+| Name     | Type    | Description                                 |
+| :------- | :------ | :------------------------------------------ |
+| provided | uint256 | The provided maximum number of delegatees.  |
+| limit    | uint256 | The hard upper limit.                       |
+
+### CoordinatorGuardianCollision
+
+```solidity
+error CoordinatorGuardianCollision(address address_)
+```
+
+Thrown when the coordinator and guardian addresses are the same.
+
+
+Parameters:
+
+| Name     | Type    | Description              |
+| :------- | :------ | :----------------------- |
+| address_ | address | The conflicting address. |
+
+### NotCoordinatorOrFactory
+
+```solidity
+error NotCoordinatorOrFactory(address caller, address coordinator, address factory)
+```
+
+Thrown when an address other than the coordinator or factory attempts to call a restricted function.
+
+
+Parameters:
+
+| Name        | Type    | Description                           |
+| :---------- | :------ | :------------------------------------ |
+| caller      | address | The address that attempted the call.  |
+| coordinator | address | The coordinator address.              |
+| factory     | address | The factory address.                  |
+
+### AddressCollision
+
+```solidity
+error AddressCollision(address addr)
+```
+
+Thrown when attempting to transfer delegation to the same address.
+
+
+Parameters:
+
+| Name | Type    | Description                                                                     |
+| :--- | :------ | :------------------------------------------------------------------------------ |
+| addr | address | The address that is both the source and destination of the delegation transfer. |

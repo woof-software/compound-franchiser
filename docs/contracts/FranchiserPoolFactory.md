@@ -5,35 +5,40 @@
 #### License: GPL-3.0-or-later
 
 ```solidity
-contract FranchiserPoolFactory is IFranchiserPoolFactory, FranchiserImmutableState
+contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolFactoryEvents
 ```
+
+Author: WOOF! Software
 
 Governance's sole entry point for creating, funding, and halting
 FranchiserPool programs, and for adjusting their parameters.
 All functions are restricted to the immutable governance address.
+security-contact: dmitriy@woof.software
+
 ## Constants info
-
-### MINIMUM_FREEZE_PERIOD (0x82d73663)
-
-```solidity
-uint256 constant MINIMUM_FREEZE_PERIOD = 10 days
-```
-
-
-## State variables info
 
 ### governance (0x5aa6e675)
 
 ```solidity
-address immutable governance
+address constant governance = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925
 ```
 
+The governance address (Compound timelock).
+## State variables info
 
-### isKnownPool (0x0de9f502)
+### votingToken (0xb0340123)
 
 ```solidity
-mapping(address => bool) isKnownPool
+contract IERC20 immutable votingToken
 ```
+
+The `votingToken` of the contract.
+
+
+Return values:
+
+| Name | Type | Description |
+| :--- | :--- | :---------- |
 
 
 ## Modifiers info
@@ -44,25 +49,34 @@ mapping(address => bool) isKnownPool
 modifier onlyGovernance()
 ```
 
+Checks that the caller is the governance address.
 
+Reverts with NotGovernance if the caller is not governance.
 ### onlyKnownPool
 
 ```solidity
 modifier onlyKnownPool(address pool)
 ```
 
+Checks that `pool` is a known pool deployed by this factory.
 
+Reverts with UnknownPool if `pool` is not in the `_pools` set.
 ## Functions info
 
 ### constructor
 
 ```solidity
-constructor(
-    IVotingToken votingToken_,
-    address governance_
-) FranchiserImmutableState(votingToken_)
+constructor(IERC20 votingToken_)
 ```
 
+The constructor sets the `votingToken`.
+
+
+Parameters:
+
+| Name         | Type            | Description                        |
+| :----------- | :-------------- | :--------------------------------- |
+| votingToken_ | contract IERC20 | The `votingToken` of the contract. |
 
 ### createPool (0x85ac165a)
 
@@ -73,10 +87,10 @@ function createPool(
     uint256 maxDelegatees_,
     uint256 freezePeriod_,
     uint256 amount
-) external onlyGovernance returns (FranchiserPool pool)
+) public onlyGovernance returns (FranchiserPool pool)
 ```
 
-Deploys a new FranchiserPool and optionally seeds it with COMP.
+Deploys a new FranchiserPool and seeds it with COMP.
 
 Requires governance to have approved this contract for `amount`.
 Reverts if `freezePeriod` is below `MINIMUM_FREEZE_PERIOD`.
@@ -99,7 +113,7 @@ Return values:
 | :--- | :---------------------- | :--------------------------------- |
 | pool | contract FranchiserPool | The newly deployed FranchiserPool. |
 
-### createPoolAndFund (0xdc3f1cf2)
+### createPoolAndFund (0x83821fc0)
 
 ```solidity
 function createPoolAndFund(
@@ -107,6 +121,7 @@ function createPoolAndFund(
     address guardian_,
     uint256 maxDelegatees_,
     uint256 freezePeriod_,
+    uint256 totalAmount,
     address[] calldata delegatees,
     uint256[] calldata amounts
 ) external onlyGovernance returns (FranchiserPool pool)
@@ -115,7 +130,6 @@ function createPoolAndFund(
 Deploys a new FranchiserPool and funds initial delegatees in a single transaction.
 
 Requires governance to have approved this contract for `amount`.
-Reverts if `freezePeriod` is below `MINIMUM_FREEZE_PERIOD`.
 
 
 Parameters:
@@ -125,7 +139,7 @@ Parameters:
 | coordinator_   | address   | The initial coordinator address.                                            |
 | guardian_      | address   | The initial guardian address.                                               |
 | maxDelegatees_ | uint256   | The maximum number of simultaneous top-level delegatees.                    |
-| freezePeriod_  | uint256   | The initial emergency freeze duration (>= MINIMUM_FREEZE_PERIOD).           |
+| freezePeriod_  | uint256   | The initial emergency freeze duration.                                      |
 | delegatees     | address[] | The initial delegatees to fund.                                             |
 | amounts        | uint256[] | The initial amounts of COMP to transfer from governance to each delegatee.  |
 
@@ -136,13 +150,6 @@ Return values:
 | :--- | :---------------------- | :--------------------------------- |
 | pool | contract FranchiserPool | The newly deployed FranchiserPool. |
 
-### getAllPools (0xd88ff1f4)
-
-```solidity
-function getAllPools() external view returns (address[] memory)
-```
-
-Returns the list of all pools deployed by this factory.
 ### fundPool (0x2bfd5146)
 
 ```solidity
@@ -216,7 +223,7 @@ function setFreezePeriod(
 ) external onlyGovernance onlyKnownPool(pool)
 ```
 
-Updates the freeze period of `pool`. Reverts if below `MINIMUM_FREEZE_PERIOD`.
+Updates the freeze period of `pool`.
 ### unfreezePool (0xc41548a3)
 
 ```solidity
@@ -224,3 +231,17 @@ function unfreezePool(address pool) external onlyGovernance onlyKnownPool(pool)
 ```
 
 Lifts an active freeze on `pool` early, before it auto-expires.
+### isKnownPool (0x0de9f502)
+
+```solidity
+function isKnownPool(address pool) external view returns (bool)
+```
+
+Returns true if `pool` was deployed by this factory.
+### getAllPools (0xd88ff1f4)
+
+```solidity
+function getAllPools() external view returns (address[] memory)
+```
+
+Returns the list of all pools deployed by this factory.

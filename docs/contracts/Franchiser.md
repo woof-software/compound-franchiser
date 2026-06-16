@@ -5,9 +5,14 @@
 #### License: GPL-3.0-or-later
 
 ```solidity
-contract Franchiser is IFranchiser, FranchiserImmutableState, Ownable
+contract Franchiser is IFranchiserErrors, IFranchiserEvents, Ownable
 ```
 
+Author: WOOF! Software
+
+This contract allows for the delegation of voting tokens in a recursive manner,
+enabling complex delegation hierarchies.
+security-contact: dmitriy@woof.software
 
 ## Constants info
 
@@ -16,6 +21,16 @@ contract Franchiser is IFranchiser, FranchiserImmutableState, Ownable
 ```solidity
 uint96 constant DECAY_FACTOR = 2
 ```
+
+The value responsible for decaying `maximumSubDelegatees`.
+
+At each nesting level, `maximumSubDelegatees` is divided by this factor.
+
+
+Return values:
+
+| Name | Type | Description |
+| :--- | :--- | :---------- |
 
 
 ## State variables info
@@ -26,6 +41,31 @@ uint96 constant DECAY_FACTOR = 2
 contract Franchiser immutable franchiserImplementation
 ```
 
+The implementation contract used to clone Franchiser contracts.
+
+Used as part of an EIP-1167 proxy minimal proxy setup.
+
+
+Return values:
+
+| Name | Type | Description |
+| :--- | :--- | :---------- |
+
+
+### votingToken (0xb0340123)
+
+```solidity
+contract IVotingToken immutable votingToken
+```
+
+The `votingToken` of the contract.
+
+
+Return values:
+
+| Name | Type | Description |
+| :--- | :--- | :---------- |
+
 
 ### delegatee (0x1e31d053)
 
@@ -33,12 +73,35 @@ contract Franchiser immutable franchiserImplementation
 address delegatee
 ```
 
+The `delegatee` of the contract.
+
+Never changes after being set via initialize.
+Packed with `maximumSubDelegatees`.
+
+
+Return values:
+
+| Name | Type | Description |
+| :--- | :--- | :---------- |
+
 
 ### maximumSubDelegatees (0x1ba8d97c)
 
 ```solidity
 uint96 maximumSubDelegatees
 ```
+
+The maximum number of `subDelegatee` addresses that the contract
+can have at any one time.
+
+Never changes after being set via initialize.
+Packed with `delegatee`.
+
+
+Return values:
+
+| Name | Type | Description |
+| :--- | :--- | :---------- |
 
 
 ## Modifiers info
@@ -52,48 +115,20 @@ modifier onlyDelegatee()
 Reverts if called by any account other than the `delegatee`.
 ## Functions info
 
-### delegator (0xce9b7930)
-
-```solidity
-function delegator() public view returns (address)
-```
-
-The address that delegated tokens to this address.
-
-Is derived from the `delegatee` of the `owner`, except for
-direct descendants of the FranchiserFactory.
-Never changes after being set via initialize.
-
-
-Return values:
-
-| Name | Type    | Description      |
-| :--- | :------ | :--------------- |
-| [0]  | address | The `delegator`. |
-
-### subDelegatees (0xd1ddf4ef)
-
-```solidity
-function subDelegatees() external view returns (address[] memory)
-```
-
-The list of current `subDelegatee` addresses.
-
-
-Return values:
-
-| Name | Type      | Description                           |
-| :--- | :-------- | :------------------------------------ |
-| [0]  | address[] | The current `subDelegatee` addresses. |
-
 ### constructor
 
 ```solidity
-constructor(
-    IVotingToken votingToken_
-) FranchiserImmutableState(votingToken_) Ownable(msg.sender)
+constructor(IVotingToken votingToken_) Ownable(msg.sender)
 ```
 
+The constructor sets the `votingToken` and the `franchiserImplementation`.
+
+
+Parameters:
+
+| Name         | Type                  | Description                        |
+| :----------- | :-------------------- | :--------------------------------- |
+| votingToken_ | contract IVotingToken | The `votingToken` of the contract. |
 
 ### initialize (0xc861c250)
 
@@ -113,11 +148,11 @@ The `owner` is always the sender of the call.
 
 Parameters:
 
-| Name                 | Type    | Description                                     |
-| :------------------- | :------ | :---------------------------------------------- |
-| delegator            | address | The `delegator`.                                |
-| delegatee            | address | The `delegatee`.                                |
-| maximumSubDelegatees | uint96  | The maximum number of `subDelegatee` addresses. |
+| Name                  | Type    | Description                                     |
+| :-------------------- | :------ | :---------------------------------------------- |
+| delegator_            | address | The `delegator`.                                |
+| delegatee_            | address | The `delegatee`.                                |
+| maximumSubDelegatees_ | uint96  | The maximum number of `subDelegatee` addresses. |
 
 ### initialize (0xf2a41374)
 
@@ -132,10 +167,44 @@ Used for all Franchiser initialization beyond the first level of nesting.
 
 Parameters:
 
-| Name                 | Type    | Description                                     |
-| :------------------- | :------ | :---------------------------------------------- |
-| delegatee            | address | The `delegatee`.                                |
-| maximumSubDelegatees | uint96  | The maximum number of `subDelegatee` addresses. |
+| Name                  | Type    | Description                                     |
+| :-------------------- | :------ | :---------------------------------------------- |
+| delegatee_            | address | The `delegatee`.                                |
+| maximumSubDelegatees_ | uint96  | The maximum number of `subDelegatee` addresses. |
+
+### delegator (0xce9b7930)
+
+```solidity
+function delegator() public view returns (address)
+```
+
+The address that delegated tokens to this address.
+
+Is derived from the `delegatee` of the `owner`, except for
+direct descendants of the FranchiserFactory.
+Never changes after being set via initialize.
+
+
+Return values:
+
+| Name | Type    | Description     |
+| :--- | :------ | :-------------- |
+| [0]  | address | The `delegator` |
+
+### subDelegatees (0xd1ddf4ef)
+
+```solidity
+function subDelegatees() external view returns (address[] memory)
+```
+
+The list of current `subDelegatee` addresses.
+
+
+Return values:
+
+| Name | Type      | Description                           |
+| :--- | :-------- | :------------------------------------ |
+| [0]  | address[] | The current `subDelegatee` addresses. |
 
 ### getFranchiser (0x78b440ac)
 
@@ -158,9 +227,9 @@ Parameters:
 
 Return values:
 
-| Name       | Type                | Description                                            |
-| :--------- | :------------------ | :----------------------------------------------------- |
-| franchiser | contract Franchiser | The Franchiser contract, whether or not it exists yet. |
+| Name | Type                | Description                                                       |
+| :--- | :------------------ | :---------------------------------------------------------------- |
+| [0]  | contract Franchiser | franchiser The Franchiser contract, whether or not it exists yet. |
 
 ### subDelegate (0x5c292778)
 
@@ -205,10 +274,10 @@ Calls subDelegate many times.
 
 Parameters:
 
-| Name          | Type      | Description                                    |
-| :------------ | :-------- | :--------------------------------------------- |
-| subDelegatees | address[] | The addresses that will receive voting power.  |
-| amounts       | uint256[] | The amounts of voting power.                   |
+| Name           | Type      | Description                                    |
+| :------------- | :-------- | :--------------------------------------------- |
+| subDelegatees_ | address[] | The addresses that will receive voting power.  |
+| amounts        | uint256[] | The amounts of voting power.                   |
 
 
 Return values:
@@ -223,7 +292,7 @@ Return values:
 function unSubDelegate(address subDelegatee) external onlyDelegatee
 ```
 
-Undelegates to `subDelegatee`.
+Un-delegates to `subDelegatee`.
 
 Can only be called by the `delegatee`. No-op if the Franchiser associated
 with the `subDelegatee` does not exist, or the address is not a `subDelegatee`.
@@ -248,9 +317,9 @@ Calls unSubDelegate many times.
 
 Parameters:
 
-| Name          | Type      | Description                                           |
-| :------------ | :-------- | :---------------------------------------------------- |
-| subDelegatees | address[] | The addresses that voting power will be removed from. |
+| Name           | Type      | Description                                           |
+| :------------- | :-------- | :---------------------------------------------------- |
+| subDelegatees_ | address[] | The addresses that voting power will be removed from. |
 
 ### recall (0xca430519)
 
