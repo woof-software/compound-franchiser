@@ -52,6 +52,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     }
     /// @notice The constructor sets the `votingToken`.
     /// @param votingToken_ The `votingToken` of the contract.
+        if (address(votingToken_) == address(0)) revert ZeroAddress();
 
         votingToken = votingToken_;
     }
@@ -62,6 +63,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         uint256 maxDelegatees_,
         uint256 freezePeriod_
     ) internal returns (FranchiserPool pool) {
+        if (amount == 0) revert ZeroAmount();
         pool = new FranchiserPool(
             votingToken,
             coordinator_,
@@ -120,6 +122,8 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         address[] calldata delegatees,
         uint256[] calldata amounts
     ) external onlyGovernance returns (FranchiserPool pool) {
+        if (delegatees.length == 0)
+            revert EmptyArray();
         if (delegatees.length != amounts.length)
             revert ArrayLengthMismatch();
         if (delegatees.length > maxDelegatees_)
@@ -156,6 +160,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @dev Requires governance to have approved this contract for `amount`.
     function fundPool(address pool, uint256 amount) external onlyGovernance onlyKnownPool(pool) {
         IERC20(address(votingToken)).safeTransferFrom(msg.sender, pool, amount);
+        if (amount == 0) revert ZeroAmount();
 
         emit PoolFunded(pool, amount);
     }
@@ -164,6 +169,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @dev Should be used if COMP was transferred to the factory outside of `fundPool`
     function transferToPool(address pool, uint256 amount) external onlyGovernance onlyKnownPool(pool) {
         IERC20(address(votingToken)).safeTransfer(pool, amount);
+        if (amount == 0) revert ZeroAmount();
 
         emit PoolFunded(pool, amount);
     }
@@ -203,6 +209,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         emit FreezePeriodUpdated(pool, freezePeriod_);
     }
 
+    /// @notice Lifts an active freeze on `pool` early, before it auto-expires.
     function unfreezePool(address pool) external onlyGovernance onlyKnownPool(pool) {
         FranchiserPool(pool).unfreeze();
 

@@ -23,8 +23,9 @@ interface IFranchiserPoolErrors {
     error PoolFrozen(uint256 frozenUntil);
 
     /// @notice Thrown when attempting to add a new delegatee beyond the maximum cap.
+    /// @param provided The number of delegatees being added.
     /// @param maxDelegatees The current maximum number of delegatees.
-    error MaxDelegateesReached(uint256 maxDelegatees);
+    error MaxDelegateesExceeded(uint256 provided, uint256 maxDelegatees);
 
     /// @notice Thrown when a freeze period shorter than the enforced minimum is provided.
     /// @param provided The provided freeze period.
@@ -41,4 +42,23 @@ interface IFranchiserPoolErrors {
 
     /// @notice Thrown when a required amount argument is zero.
     error ZeroAmount();
+
+    /// @notice Thrown when `maxDelegatees_` exceeds the hard upper limit `MAX_DELEGATEES`.
+    /// @param provided The provided maximum number of delegatees.
+    /// @param limit The hard upper limit.
+    error MaxDelegateesExceedsLimit(uint256 provided, uint256 limit);
+
+    /// @notice Thrown when the coordinator and guardian addresses are the same.
+    /// @param address_ The conflicting address.
+    error CoordinatorGuardianCollision(address address_);
+
+    /// @notice Thrown when an address other than the coordinator or factory attempts to call a restricted function.
+    /// @param caller The address that attempted the call.
+    /// @param coordinator The coordinator address.
+    /// @param factory The factory address.
+    error NotCoordinatorOrFactory(address caller, address coordinator, address factory);
+
+    /// @notice Thrown when attempting to transfer delegation to the same address.
+    /// @param addr The address that is both the source and destination of the delegation transfer.
+    error AddressCollision(address addr);
 }

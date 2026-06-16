@@ -15,6 +15,9 @@ interface IFranchiserPoolFactoryErrors {
     /// @notice Thrown when a required address argument is the zero address.
     error ZeroAddress();
 
+    /// @notice Thrown when an array argument is empty.
+    error EmptyArray();
+
     /// @notice Thrown when array arguments have mismatched lengths.
     error ArrayLengthMismatch();
 

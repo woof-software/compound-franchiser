@@ -109,6 +109,12 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     ) {
         if (coordinator_ == address(0)) revert ZeroAddress();
         if (guardian_ == address(0)) revert ZeroAddress();
+        if (coordinator_ == guardian_) revert CoordinatorGuardianCollision(coordinator_);
+
+        if (maxDelegatees_ == 0) revert ZeroAmount();
+        if (maxDelegatees_ > DELEGATEES_LIMIT)
+            revert MaxDelegateesExceedsLimit(maxDelegatees_, DELEGATEES_LIMIT);
+
         if (freezePeriod_ < MINIMUM_FREEZE_PERIOD)
             revert FreezePeriodTooShort(freezePeriod_, MINIMUM_FREEZE_PERIOD);
         if (freezePeriod_ > MAXIMUM_FREEZE_PERIOD)
@@ -155,8 +161,11 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         external
         whenNotFrozen
     {
-        if(msg.sender != coordinator && msg.sender != factory)
-            revert NotCoordinator(msg.sender, coordinator);
+        if (msg.sender != coordinator && msg.sender != factory)
+            revert NotCoordinatorOrFactory(msg.sender, coordinator, factory);
+
+        if (delegatee == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
 
         _delegate(delegatee, amount);
     }
@@ -172,7 +181,11 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         onlyCoordinator
         whenNotFrozen
     {
-        _recallDelegatee(from);
+        if (from == to) revert AddressCollision(from);
+        if (from == address(0) || to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        _recallDelegate(from);
         _delegate(to, amount);
     }
 
@@ -185,6 +198,10 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         external
         onlyGuardian
     {
+        if (delegatees.length == 0) revert ZeroAmount();
+        if (delegatees.length >= maxDelegatees)
+            revert MaxDelegateesExceeded(delegatees.length, maxDelegatees);
+
         unchecked {
             for (uint256 i; i < delegatees.length; ++i) {
                 _recallDelegate(delegatees[i]);
@@ -230,6 +247,9 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     /// @notice Replaces the coordinator address immediately.
     function setCoordinator(address coordinator_) external onlyFactory {
         if (coordinator_ == address(0)) revert ZeroAddress();
+        if (coordinator_ == guardian) revert CoordinatorGuardianCollision(coordinator_);
+        if (coordinator_ == coordinator) revert AddressCollision(coordinator_);
+
         emit CoordinatorSet(coordinator, coordinator_);
 
         coordinator = coordinator_;
@@ -238,6 +258,9 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     /// @notice Replaces the guardian address immediately.
     function setGuardian(address guardian_) external onlyFactory {
         if (guardian_ == address(0)) revert ZeroAddress();
+        if (guardian_ == coordinator) revert CoordinatorGuardianCollision(guardian_);
+        if (guardian_ == guardian) revert AddressCollision(guardian_);
+
         emit GuardianSet(guardian, guardian_);
 
         guardian = guardian_;
@@ -246,6 +269,8 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     /// @notice Updates the maximum delegatee cap. Lowering does not recall anyone.
     function setMaxDelegatees(uint256 maxDelegatees_) external onlyFactory {
         if (maxDelegatees_ == 0) revert ZeroAmount();
+        if (maxDelegatees_ > DELEGATEES_LIMIT)
+            revert MaxDelegateesExceedsLimit(maxDelegatees_, DELEGATEES_LIMIT);
 
         emit MaxDelegateesSet(maxDelegatees, maxDelegatees_);
 
