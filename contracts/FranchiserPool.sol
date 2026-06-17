@@ -106,7 +106,8 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         address coordinator_,
         address guardian_,
         uint256 maxDelegatees_,
-        uint256 freezePeriod_
+        uint256 freezePeriod_,
+        Franchiser franchiserImplementation_
     ) {
         if (coordinator_ == address(0)) revert ZeroAddress();
         if (guardian_ == address(0)) revert ZeroAddress();
@@ -122,7 +123,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
             revert FreezePeriodTooLong(freezePeriod_, MAXIMUM_FREEZE_PERIOD);
 
         factory = msg.sender;
-        franchiserImplementation = new Franchiser(IVotingToken(address(votingToken_)));
+        franchiserImplementation = franchiserImplementation_;
         votingToken = votingToken_;
         coordinator = coordinator_;
         guardian = guardian_;

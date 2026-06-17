@@ -61,4 +61,11 @@ interface IFranchiserPoolErrors {
     /// @notice Thrown when attempting to transfer delegation to the same address.
     /// @param addr The address that is both the source and destination of the delegation transfer.
     error AddressCollision(address addr);
+
+    /// @notice Thrown when attempting to unfreeze a pool that is not currently frozen.
+     error PoolNotFrozen();
+
+    /// @notice Thrown when attempting to set a value to the same value it currently holds.
+    /// @param value The value that is the same as the current value.
+    error SameValue(uint256 value);
 }

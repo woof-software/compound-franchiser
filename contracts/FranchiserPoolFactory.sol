@@ -7,6 +7,8 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { FranchiserPool } from "./FranchiserPool.sol";
+import { Franchiser } from "./Franchiser.sol";
+import { IVotingToken } from "./interfaces/IVotingToken.sol";
 
 /**
  * @title FranchiserPoolFactory contract for managing FranchiserPool programs.
@@ -24,6 +26,8 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @dev Should be the COMP token. Used for delegation and transfer of voting power.
     /// @return The `votingToken`.
     IERC20 public immutable votingToken;
+    /// @notice The Franchiser implementation used to clone top-level Franchiser contracts.
+    Franchiser public immutable franchiserImplementation;
 
     /// @notice The governance address (Compound timelock).
     address public constant governance = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925;
@@ -50,6 +54,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         if (address(votingToken_) == address(0)) revert ZeroAddress();
 
         votingToken = votingToken_;
+        franchiserImplementation = new Franchiser(IVotingToken(address(votingToken_)));
     }
 
     /// @notice Deploys a new FranchiserPool and seeds it with COMP.
@@ -79,7 +84,8 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
             coordinator_,
             guardian_,
             maxDelegatees_,
-            freezePeriod_
+            freezePeriod_,
+            franchiserImplementation
         );
         _pools.add(address(pool));
 
@@ -118,7 +124,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         uint256 totalAmount,
         address[] calldata delegatees,
         uint256[] calldata amounts
-    ) external onlyGovernance returns (FranchiserPool pool) {
+    ) external returns (FranchiserPool pool) {
         if (delegatees.length == 0)
             revert EmptyArray();
         if (delegatees.length != amounts.length)
