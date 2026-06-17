@@ -7,7 +7,6 @@ import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IVotingToken } from "./interfaces/IVotingToken.sol";
 import { Franchiser } from "./Franchiser.sol";
 
 /**

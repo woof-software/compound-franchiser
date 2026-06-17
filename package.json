@@ -23,6 +23,7 @@
         "lint:ts:fix": "pnpm prettier --write \"**/*.{ts,js}\" && pnpm eslint . --fix",
         "lint:sol": "pnpm solhint \"contracts/**/*.sol\" && pnpm prettier --no-error-on-unmatched-pattern --check \"{contracts,test}/**/*.sol\"",
         "lint:sol:fix": "pnpm solhint --fix \"contracts/**/*.sol\" && pnpm prettier --no-error-on-unmatched-pattern --write \"{contracts,test}/**/*.sol\"",
+        "aderyn": "bash scripts/commands/aderyn.sh",
         "gen:security-reports": "pnpm hardhat clean && pnpm hardhat build && bash scripts/commands/aderyn.sh && bash scripts/commands/slither.sh",
         "gen:docs": "rm -rf generated-markups docs && pnpm hardhat markup --outdir docs && rm -rf docs/contracts/mocks",
         "deploy": "pnpm hardhat ignition deploy ignition/modules/FranchiserPoolFactory.ts --network mainnet --parameters ignition/parameters/FranchiserPoolFactory.json --deployment-id franchiser-pool-factory --reset",
