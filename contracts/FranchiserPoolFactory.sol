@@ -7,8 +7,6 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { FranchiserPool } from "./FranchiserPool.sol";
-import { Franchiser } from "./Franchiser.sol";
-import { IVotingToken } from "./interfaces/IVotingToken.sol";
 
 /**
  * @title FranchiserPoolFactory contract for managing FranchiserPool programs.
@@ -22,15 +20,15 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
-    /// @notice The `votingToken` of the contract.
-    /// @dev Should be the COMP token. Used for delegation and transfer of voting power.
-    /// @return The `votingToken`.
-    IERC20 public immutable votingToken;
     /// @notice The Franchiser implementation used to clone top-level Franchiser contracts.
-    Franchiser public immutable franchiserImplementation;
+    address public immutable franchiserImplementation;
 
     /// @notice The governance address (Compound timelock).
     address public constant governance = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925;
+
+    /// @notice The COMP token contract
+    /// @return The token address
+    IERC20 public constant votingToken = IERC20(0xc00e94Cb662C3520282E6f5717214004A7f26888);
 
     EnumerableSet.AddressSet private _pools;
 
@@ -48,13 +46,12 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         _;
     }
 
-    /// @notice The constructor sets the `votingToken`.
-    /// @param votingToken_ The `votingToken` of the contract.
-    constructor(IERC20 votingToken_) {
-        if (address(votingToken_) == address(0)) revert ZeroAddress();
+    /// @notice The constructor sets the Franchiser implementation address.
+    /// @param franchiserImplementation The address of the Franchiser implementation contract.
+    constructor(address franchiserImplementation) {
+        if (franchiserImplementation == address(0)) revert ZeroAddress();
 
-        votingToken = votingToken_;
-        franchiserImplementation = new Franchiser(IVotingToken(address(votingToken_)));
+        franchiserImplementation = franchiserImplementation;
     }
 
     /// @notice Deploys a new FranchiserPool and seeds it with COMP.
