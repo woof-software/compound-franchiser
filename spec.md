@@ -1,23 +1,98 @@
-# Franchiser
+# Franchiser — Design Specification
 
-This document describes a smart contract design which allows holders of COMP-style voting tokens to selectively delegate portions of their voting power to third parties, while retaining full custody over the underlying tokens.
+This document describes the design of the Franchiser system, which allows a governance-controlled pool of checkpoint voting tokens to be distributed to multiple top-level delegatees, while the underlying tokens remain under the custody of the pool.
 
-Familiarity with the design and functionality of checkpoint voting tokens is assumed, for background information refer to the following reference material from e.g. [Compound](https://compound.finance/docs/governance#comp) or [OpenZeppelin](https://docs.openzeppelin.com/contracts/4.x/api/token/erc20#ERC20Votes).
+Familiarity with checkpoint voting tokens (e.g. [Compound COMP](https://compound.finance/docs/governance#comp)) is assumed.
+
+---
 
 ## Motivation
 
-Often, holders of voting tokens want to delegate their voting power, but not all to the same party! Because of how these tokens are designed, it’s impossible to do so without splitting balances across multiple addresses. While this constraint is somewhat frustrating, it opens up an interesting design space.
+Token holders (here: a DAO governed by a timelock) often want to distribute voting power across many delegates without permanently transferring token custody. The Franchiser system solves this by wrapping each delegation in a dedicated contract that can be recalled at any time.
 
-## Description
+---
 
-Imagine a `FranchiserFactory` contract designed to allocate voting tokens, with the following properties:
+## System Components
 
-1. At any time, any voting token holder may specify some `amount` of voting power to give to a `delegatee`. This creates and funds a `Franchiser` smart contract designed specifically for the holder, who becomes the `owner` of the contract, and the `delegatee`.
-    1. The `Franchiser` contract allows the `owner` to recall the delegated tokens on demand.
-    2. The `Franchiser` automatically delegates voting power to the `delegatee` with no further interaction required.
-2. `Franchiser` contracts allow `delegatees` to further sub-divide their tokens amongst several `subDelegatees`.
-    1. At any point the `delegatee` of a `Franchiser` may specify an `amount` of voting power to give to a `subDelegatee`, which creates and funds a *nested* `Franchiser` owned by the `delegatee`.
-    2. The `delegatee` may recall any delegated tokens on demand.
-    3. The maximum allowable number of `subDelegatees` varies. The `delegatee` who was granted voting power by an `owner` may designate up to 8 `subDelegatees`. Each of those may then specify 4 `subDelegatees` in turn, then 2, then 1, then 0.
+### Franchiser
 
-Note that at any level of nesting, a `delegatee` (or `owner`) always has the ability to recall any and all tokens they or any subsidiaries have delegated. The maximum number of nested `delegatees`/`subDelegatees` that any one `owner` could be associated with is 16 (8 + 8\*4 + 8\*4\*2 + 8\*4\*2), which costs about ~5m gas to fully unwind.
+The primitive delegation unit. Each `Franchiser` is a minimal EIP-1167 proxy clone that:
+
+- Holds a balance of voting tokens.
+- Automatically delegates all votes to a fixed `delegatee` address (set at clone initialisation, never changed).
+- Allows its `owner` to call `recall(to)` at any time to drain the balance (including any sub-delegated amounts) back to `to`.
+- Allows the `delegatee` to push a portion of voting power one level deeper via `subDelegate(subDelegatee, amount)`.
+
+Clones are deployed at deterministic CREATE2 addresses, so the address of a future clone can be predicted with `getFranchiser` before it is deployed.
+
+### FranchiserPool
+
+A pool that a single governance entity seeds with tokens and a coordinator distributes to multiple top-level delegatees. Each delegatee is backed by a dedicated `Franchiser` clone owned by the pool.
+
+Key state:
+
+| Field | Description |
+|---|---|
+| `votingToken` | The checkpoint ERC-20 being delegated. |
+| `factory` | The `FranchiserPoolFactory` that deployed this pool. Immutable. |
+| `coordinator` | Address authorised to delegate, recall, and reassign within the pool. |
+| `guardian` | Address authorised to emergency-freeze and emergency-recall. |
+| `maxDelegatees` | Cap on simultaneous active top-level delegatees (1 – `DELEGATEES_LIMIT`). |
+| `freezePeriod` | Duration applied to future guardian-triggered freezes. |
+| `frozenUntil` | Timestamp until which coordinator actions are blocked. `0` = not frozen. |
+| `_activeDelegatees` | Enumerable set of addresses that currently have a funded Franchiser. |
+
+### FranchiserPoolFactory
+
+Governance's sole entry point. All functions are restricted to the hardcoded `governance` address. Maintains an enumerable set of all pools it has deployed.
+
+---
+
+## Roles
+
+### Governance
+
+Hardcoded constant in `FranchiserPoolFactory` (`0x6d903f6003cca6255D85CcA4D3B5E5146dC33925` — the Compound timelock). Exclusively controls all factory functions: creating, funding, halting, and reconfiguring pools.
+
+### Coordinator
+
+Assigned per pool. Responsible for the live delegation set during normal operation:
+
+- `delegate(delegatee, amount)` — push tokens from the pool to a delegatee's Franchiser clone.
+- `recall(delegatee)` — drain a delegatee's Franchiser back to the pool.
+- `reassign(from, to, amount)` — atomically recall `from` and delegate `amount` to `to`.
+
+All coordinator actions revert while the pool is frozen (`block.timestamp < frozenUntil`).
+
+### Guardian
+
+Assigned per pool. Provides emergency capabilities that remain available regardless of freeze state:
+
+- `emergencyRecallDelegates(delegatees[])` — selectively recall specific delegatees. Array length must be less than `maxDelegatees`.
+- `emergencyFreezePool()` — freeze the pool for `freezePeriod` without recalling anyone.
+- `emergencyFreezeAndRecallPool()` — recall all active delegatees, then freeze.
+
+### Delegatee
+
+Receives voting power from the pool via their Franchiser clone. May push a portion of that voting power one level deeper:
+
+- `franchiser.subDelegate(subDelegatee, amount)` — delegates `amount` to `subDelegatee` via a nested Franchiser clone.
+
+Sub-delegatees cannot sub-delegate further (`INITIAL_MAXIMUM_SUBDELEGATEES / DECAY_FACTOR = 0`).
+
+---
+
+## Sub-Delegation Tree
+
+```
+FranchiserPool
+└─ Franchiser(delegatee_A)        [maximumSubDelegatees = 1]
+│     └─ Franchiser(subDelegatee) [maximumSubDelegatees = 0, cannot sub-delegate]
+└─ Franchiser(delegatee_B)        [maximumSubDelegatees = 1]
+│     └─ Franchiser(subDelegatee) [maximumSubDelegatees = 0, cannot sub-delegate]
+└─ ... (up to maxDelegatees active at once)
+```
+
+Each top-level delegatee may have at most **one** sub-delegatee (`INITIAL_MAXIMUM_SUBDELEGATEES = 1`). The `DECAY_FACTOR = 2` halves the sub-delegation allowance at each nesting level, so the tree is exactly two levels deep.
+
+When the pool owner recalls a top-level delegatee, the Franchiser's `recall` traverses and drains the sub-delegatee's Franchiser first, collapsing the full subtree in one call.

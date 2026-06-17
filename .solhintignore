@@ -1,0 +1,8 @@
+/node_modules/
+/lib/
+/artifacts/
+/contracts/mocks/
+/contracts/@openzeppelin/
+/contracts/vendor/
+/test/
+/contracts-exposed/
