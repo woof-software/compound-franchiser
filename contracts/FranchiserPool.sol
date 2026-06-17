@@ -262,6 +262,8 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         if (maxDelegatees_ > DELEGATEES_LIMIT)
             revert MaxDelegateesExceedsLimit(maxDelegatees_, DELEGATEES_LIMIT);
 
+        if (maxDelegatees_ == maxDelegatees) revert SameValue(maxDelegatees_);
+
         emit MaxDelegateesSet(maxDelegatees, maxDelegatees_);
 
         maxDelegatees = maxDelegatees_;
@@ -275,6 +277,8 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
 
         if (freezePeriod_ > MAXIMUM_FREEZE_PERIOD)
             revert FreezePeriodTooLong(freezePeriod_, MAXIMUM_FREEZE_PERIOD);
+
+        if (freezePeriod_ == freezePeriod) revert SameValue(freezePeriod_);
 
         emit FreezePeriodSet(freezePeriod, freezePeriod_);
         freezePeriod = freezePeriod_;
