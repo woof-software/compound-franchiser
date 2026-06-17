@@ -47,11 +47,11 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     }
 
     /// @notice The constructor sets the Franchiser implementation address.
-    /// @param franchiserImplementation The address of the Franchiser implementation contract.
-    constructor(address franchiserImplementation) {
-        if (franchiserImplementation == address(0)) revert ZeroAddress();
+    /// @param franchiserImplementation_ The address of the Franchiser implementation contract.
+    constructor(address franchiserImplementation_) {
+        if (franchiserImplementation_ == address(0)) revert ZeroAddress();
 
-        franchiserImplementation = franchiserImplementation;
+        franchiserImplementation = franchiserImplementation_;
     }
 
     /// @notice Deploys a new FranchiserPool and seeds it with COMP.

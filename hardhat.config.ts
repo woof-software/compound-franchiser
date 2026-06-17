@@ -32,7 +32,10 @@ export default defineConfig({
             type: "edr-simulated",
             chainType: "l1",
             forking: {
-                url: configVariable("MAINNET_RPC_URL"),
+                // Tests fork mainnet to interact with the real COMP token, so this is
+                // read directly from .env (via dotenv) rather than the keystore-backed
+                // configVariable used by the deployment networks below.
+                url: process.env.MAINNET_RPC_URL ?? "",
             }
         },
         hardhatOp: {
