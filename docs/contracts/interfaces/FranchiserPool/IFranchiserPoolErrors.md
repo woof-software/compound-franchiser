@@ -198,3 +198,25 @@ Parameters:
 | Name | Type    | Description                                                                     |
 | :--- | :------ | :------------------------------------------------------------------------------ |
 | addr | address | The address that is both the source and destination of the delegation transfer. |
+
+### PoolNotFrozen
+
+```solidity
+error PoolNotFrozen()
+```
+
+Thrown when attempting to unfreeze a pool that is not currently frozen.
+### SameValue
+
+```solidity
+error SameValue(uint256 value)
+```
+
+Thrown when attempting to set a value to the same value it currently holds.
+
+
+Parameters:
+
+| Name  | Type    | Description                                      |
+| :---- | :------ | :----------------------------------------------- |
+| value | uint256 | The value that is the same as the current value. |

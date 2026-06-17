@@ -165,7 +165,8 @@ constructor(
     address coordinator_,
     address guardian_,
     uint256 maxDelegatees_,
-    uint256 freezePeriod_
+    uint256 freezePeriod_,
+    Franchiser franchiserImplementation_
 )
 ```
 

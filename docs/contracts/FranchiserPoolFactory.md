@@ -43,6 +43,13 @@ Return values:
 | :--- | :--- | :---------- |
 
 
+### franchiserImplementation (0xc61bdcd2)
+
+```solidity
+contract Franchiser immutable franchiserImplementation
+```
+
+The Franchiser implementation used to clone top-level Franchiser contracts.
 ## Modifiers info
 
 ### onlyGovernance
@@ -126,7 +133,7 @@ function createPoolAndFund(
     uint256 totalAmount,
     address[] calldata delegatees,
     uint256[] calldata amounts
-) external onlyGovernance returns (FranchiserPool pool)
+) external returns (FranchiserPool pool)
 ```
 
 Deploys a new FranchiserPool and funds initial delegatees in a single transaction.
