@@ -27,12 +27,16 @@ async function deployPool(delegateeCount: number, maxCap?: number) {
     const [, coordinator, guardian] = await ethers.getSigners();
 
     const token = await ethers.deployContract("MockVotingToken");
+    const franchiserImplementation = await ethers.deployContract("Franchiser", [
+        await token.getAddress(),
+    ]);
     const pool = await ethers.deployContract("FranchiserPool", [
         await token.getAddress(),
         coordinator.address,
         guardian.address,
         BigInt(maxCap ?? delegateeCount),
         FREEZE_PERIOD,
+        await franchiserImplementation.getAddress(),
     ]);
 
     const totalAmount = ethers.parseEther("100") * BigInt(maxCap ?? delegateeCount);

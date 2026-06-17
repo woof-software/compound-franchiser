@@ -880,6 +880,17 @@ describe("FranchiserPoolFactory", function () {
             ).to.be.revertedWithCustomError(pool, "MaxDelegateesExceedsLimit");
         });
 
+        it("reverts with SameValue when maxDelegatees is unchanged", async function () {
+            const { factory, governance, pool } = await restorePool();
+            const current = await pool.maxDelegatees();
+
+            await expect(
+                factory.connect(governance).setMaxDelegatees(await pool.getAddress(), current)
+            )
+                .to.be.revertedWithCustomError(pool, "SameValue")
+                .withArgs(current);
+        });
+
         it("updates pool maxDelegatees and emits MaxDelegateesUpdated", async function () {
             const { factory, governance, pool } = await restorePool();
 
@@ -949,6 +960,17 @@ describe("FranchiserPoolFactory", function () {
             ).to.be.revertedWithCustomError(pool, "FreezePeriodTooLong");
         });
 
+        it("reverts with SameValue when freeze period is unchanged", async function () {
+            const { factory, governance, pool } = await restorePool();
+            const current = await pool.freezePeriod();
+
+            await expect(
+                factory.connect(governance).setFreezePeriod(await pool.getAddress(), current)
+            )
+                .to.be.revertedWithCustomError(pool, "SameValue")
+                .withArgs(current);
+        });
+
         it("updates pool freeze period and emits FreezePeriodUpdated", async function () {
             const { factory, governance, pool } = await restorePool();
 
@@ -986,16 +1008,14 @@ describe("FranchiserPoolFactory", function () {
                 .withArgs(other.address);
         });
 
-        it("succeeds and emits PoolUnfrozen even when pool is not currently frozen", async function () {
+        it("reverts with PoolNotFrozen when pool is not currently frozen", async function () {
             const { factory, governance, pool } = await restorePool();
 
             expect(await pool.frozenUntil()).to.equal(0n);
 
             await expect(
                 factory.connect(governance).unfreezePool(await pool.getAddress())
-            ).to.emit(pool, "PoolUnfrozen");
-
-            expect(await pool.frozenUntil()).to.equal(0n);
+            ).to.be.revertedWithCustomError(pool, "PoolNotFrozen");
         });
 
         it("unfreezes pool and emits PoolUnfrozen", async function () {
