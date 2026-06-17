@@ -24,17 +24,13 @@ address constant governance = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925
 ```
 
 The governance address (Compound timelock).
-## State variables info
-
 ### votingToken (0xb0340123)
 
 ```solidity
-contract IERC20 immutable votingToken
+contract IERC20 constant votingToken = IERC20(0xc00e94Cb662C3520282E6f5717214004A7f26888)
 ```
 
-The `votingToken` of the contract.
-
-Should be the COMP token. Used for delegation and transfer of voting power.
+The COMP token contract
 
 
 Return values:
@@ -43,10 +39,12 @@ Return values:
 | :--- | :--- | :---------- |
 
 
+## State variables info
+
 ### franchiserImplementation (0xc61bdcd2)
 
 ```solidity
-contract Franchiser immutable franchiserImplementation
+address immutable franchiserImplementation
 ```
 
 The Franchiser implementation used to clone top-level Franchiser contracts.
@@ -75,17 +73,17 @@ Reverts with UnknownPool if `pool` is not in the `_pools` set.
 ### constructor
 
 ```solidity
-constructor(IERC20 votingToken_)
+constructor(address franchiserImplementation_)
 ```
 
-The constructor sets the `votingToken`.
+The constructor sets the Franchiser implementation address.
 
 
 Parameters:
 
-| Name         | Type            | Description                        |
-| :----------- | :-------------- | :--------------------------------- |
-| votingToken_ | contract IERC20 | The `votingToken` of the contract. |
+| Name                      | Type    | Description                                            |
+| :------------------------ | :------ | :----------------------------------------------------- |
+| franchiserImplementation_ | address | The address of the Franchiser implementation contract. |
 
 ### createPool (0x85ac165a)
 
