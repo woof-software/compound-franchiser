@@ -202,19 +202,12 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
     /// @notice Recalls all delegatees and freezes coordinator actions for `freezePeriod` seconds.
     function emergencyFreezeAndRecallPool() external onlyGuardian {
         _recallAll();
-
-        uint256 until = block.timestamp + freezePeriod;
-        frozenUntil = until;
-
-        emit EmergencyFreeze(until);
+        _freeze();
     }
 
     /// @notice Freezes coordinator actions for `freezePeriod` seconds without recalling delegatees.
     function emergencyFreezePool() external onlyGuardian {
-        uint256 until = block.timestamp + freezePeriod;
-        frozenUntil = until;
-
-        emit EmergencyFreeze(until);
+        _freeze();
     }
 
     // -------------------------------------------------------------------------
@@ -347,5 +340,12 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
                 _recallDelegate(_activeDelegatees.at(--n));
             }
         }
+    }
+
+    function _freeze() internal {
+        uint256 until = block.timestamp + freezePeriod;
+        frozenUntil = until;
+
+        emit EmergencyFreeze(until);
     }
 }
