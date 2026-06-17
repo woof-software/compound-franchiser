@@ -3,26 +3,20 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 /**
  * Deploys the FranchiserPoolFactory for the governance-controlled pool-delegation flow.
  *
- * Required parameters (pass via --parameters or a parameters JSON file):
+ * Required parameters (set in ignition/parameters/FranchiserPoolFactory.json):
  *   votingToken  — address of the IVotingToken (checkpoint ERC-20) to delegate
- *   governance   — address that will own the factory and control all pool operations
+ *
+ * Governance is hardcoded in the contract as the Compound timelock:
+ *   0x6d903f6003cca6255D85CcA4D3B5E5146dC33925
  *
  * Pools are created after deployment via governance proposals that call createPool()
  * on the factory. The factory's createPool() is restricted to the governance address,
  * so it cannot be called from this deployment script.
- *
- * Example:
- *  For a Compound deployment
- *   pnpm hardhat ignition deploy ignition/modules/FranchiserPoolFactory.ts \
-      --network mainnet \
-      --deployment-id franchiser-pool-factory \
-      --parameters '{"FranchiserPoolFactory":{"votingToken":"0xc00e94Cb662C3520282E6f5717214004A7f26888","governance":"0x6d903f6003cca6255d85cca4d3b5e5146dc33925"}}'
  */
 export default buildModule("FranchiserPoolFactory", (m) => {
     const votingToken = m.getParameter<string>("votingToken");
-    const governance = m.getParameter<string>("governance");
 
-    const factory = m.contract("FranchiserPoolFactory", [votingToken, governance]);
+    const factory = m.contract("FranchiserPoolFactory", [votingToken]);
 
     return { factory };
 });

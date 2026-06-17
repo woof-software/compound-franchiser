@@ -197,23 +197,32 @@ pnpm gen:security-reports
 
 Deployment uses [Hardhat Ignition](https://hardhat.org/ignition/docs/getting-started).
 
-### Deploy to mainnet
+### Configure parameters
 
-```bash
-# Deploy FranchiserFactory with the address of the voting token (e.g. COMP for a Compound deployment)
-pnpm hardhat ignition deploy ignition/modules/FranchiserFactory.ts \
-      --network mainnet \
-      --deployment-id franchiser-factory \
-      --parameters '{"FranchiserFactory":{"votingToken":"0x..."}}'
+Edit [`ignition/parameters/FranchiserPoolFactory.json`](ignition/parameters/FranchiserPoolFactory.json) before deploying:
+
+```json
+{
+    "FranchiserPoolFactory": {
+        "votingToken": "0xc00e94Cb662C3520282E6f5717214004A7f26888"
+    }
+}
 ```
 
+`votingToken` is the only required parameter. Governance is hardcoded in the contract as the Compound timelock (`0x6d903f6003cca6255D85CcA4D3B5E5146dC33925`).
+
+### Deploy
+
 ```bash
-# Deploy FranchiserPoolFactory with the address of the voting token and governance (e.g. COMP for a Compound deployment)
-pnpm hardhat ignition deploy ignition/modules/FranchiserPoolFactory.ts \
-      --network mainnet \
-      --deployment-id franchiser-pool-factory \
-      --parameters '{"FranchiserPoolFactory":{"votingToken":"0x...","governance":"0x..."}}'
+# Deploy to mainnet
+pnpm deploy
+
+# Deploy to Sepolia (for testing)
+pnpm deploy:sepolia
 ```
+
+Both commands use `--reset`, so each run deploys a fresh contract regardless of any previous deployment state.
+
 ---
 
 ## Contract Documentation
