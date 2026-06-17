@@ -132,6 +132,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
         if (delegatees.length > maxDelegatees_)
             revert MaxDelegateesExceeded(delegatees.length, maxDelegatees_);
 
+        // onlyGovernance is checked in createPool, which is called by this function
         pool = createPool(coordinator_, guardian_, maxDelegatees_, freezePeriod_, totalAmount);
 
         for (uint256 i; i < delegatees.length; ++i) {

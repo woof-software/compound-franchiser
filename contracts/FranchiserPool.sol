@@ -280,6 +280,7 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
 
     /// @notice Lifts an active freeze early, re-enabling coordinator actions.
     function unfreeze() external onlyFactory {
+        if (block.timestamp >= frozenUntil) revert PoolNotFrozen();
         frozenUntil = 0;
         emit PoolUnfrozen();
     }
