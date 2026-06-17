@@ -96,5 +96,3 @@ FranchiserPool
 Each top-level delegatee may have at most **one** sub-delegatee (`INITIAL_MAXIMUM_SUBDELEGATEES = 1`). The `DECAY_FACTOR = 2` halves the sub-delegation allowance at each nesting level, so the tree is exactly two levels deep.
 
 When the pool owner recalls a top-level delegatee, the Franchiser's `recall` traverses and drains the sub-delegatee's Franchiser first, collapsing the full subtree in one call.
-
----

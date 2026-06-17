@@ -1,11 +1,11 @@
 # Franchiser
 
-`Franchiser` allows holders of checkpoint voting tokens to selectively sub-delegate voting power while retaining full custody over their funds, as described in the [design document](./spec.md).
+`Franchiser` allows a governance-controlled pool of checkpoint voting tokens to be distributed to multiple top-level delegatees while full custody remains with the pool, as described in the [design document](./spec.md).
 
-The system ships two parallel delegation paths:
+Token distribution is managed through two contracts:
 
-- **FranchiserFactory** — permissionless; any token holder can delegate directly.
-- **FranchiserPool / FranchiserPoolFactory** — governance-controlled; a Coordinator distributes tokens from a shared pool to multiple top-level delegatees, with a Guardian providing emergency freeze and recall capabilities.
+- **FranchiserPoolFactory** — deploys and tracks `FranchiserPool` instances.
+- **FranchiserPool** — a Coordinator allocates tokens from a governance-controlled shared pool to multiple top-level delegatees; a Guardian can freeze or recall delegations in an emergency.
 
 - **License:** GPL-3.0-or-later
 - **Solidity:** 0.8.35
