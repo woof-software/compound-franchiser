@@ -1,32 +1,27 @@
 import { expect } from "chai";
-import { network } from "hardhat";
-import { EventLog } from "ethers";
+import {
+    createMainnetConnection,
+    deployFranchiserPoolFactory,
+    getCreatedPoolAddress,
+    parseCreatedPoolLog,
+    GOVERNANCE_ADDRESS,
+    FREEZE_PERIOD,
+    MAXIMUM_FREEZE_PERIOD,
+} from "./helpers.js";
 
-const { ethers, networkHelpers } = await network.create();
-
-const FREEZE_PERIOD = 10 * 24 * 3600; // 10 days in seconds
-const MAXIMUM_FREEZE_PERIOD = 30 * 24 * 3600; // 30 days in seconds
-
-const GOVERNANCE_ADDRESS = "0x6d903f6003cca6255D85CcA4D3B5E5146dC33925";
+const connection = await createMainnetConnection();
+const { ethers, networkHelpers } = connection;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 async function deployFixture() {
     const [, coordinator, guardian, other] = await ethers.getSigners();
 
-    await networkHelpers.setBalance(GOVERNANCE_ADDRESS, ethers.parseEther("100"));
-    const governance = await ethers.getImpersonatedSigner(GOVERNANCE_ADDRESS);
-
-    const token = await ethers.deployContract("MockVotingToken");
-    const factory = await ethers.deployContract("FranchiserPoolFactory", [
-        await token.getAddress(),
-    ]);
-
     const AMOUNT = ethers.parseEther("10000");
-    await token.mint(governance.address, AMOUNT * 10n);
-    await token.connect(governance).approve(await factory.getAddress(), ethers.MaxUint256);
+    const { governance, token, franchiserImplementation, poolFactory: factory } =
+        await deployFranchiserPoolFactory(connection, AMOUNT * 100n);
 
-    return { governance, coordinator, guardian, other, token, factory, AMOUNT };
+    return { governance, coordinator, guardian, other, token, factory, franchiserImplementation, AMOUNT };
 }
 
 async function poolCreatedFixture() {
@@ -41,12 +36,7 @@ async function poolCreatedFixture() {
         AMOUNT
     );
     const receipt = await tx.wait();
-    const event = receipt?.logs.find(
-        (log) =>
-            log.topics[0] ===
-            factory.interface.getEvent("PoolCreated").topicHash
-    );
-    const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
+    const poolAddr = getCreatedPoolAddress(factory, receipt);
     const pool = await ethers.getContractAt("FranchiserPool", poolAddr);
 
     return { ...base, pool, poolAddr };
@@ -71,7 +61,15 @@ describe("FranchiserPoolFactory", function () {
             expect(await factory.governance()).to.equal(GOVERNANCE_ADDRESS);
         });
 
-        it("reverts if votingToken is zero address", async function () {
+        it("stores the franchiserImplementation address", async function () {
+            const { factory, franchiserImplementation } = await restore();
+
+            expect(await factory.franchiserImplementation()).to.equal(
+                await franchiserImplementation.getAddress()
+            );
+        });
+
+        it("reverts if franchiserImplementation is zero address", async function () {
             const { factory } = await restore();
 
             await expect(
@@ -146,13 +144,7 @@ describe("FranchiserPoolFactory", function () {
                     1n
                 );
             const receipt = await tx.wait();
-            const event = receipt?.logs.find(
-                (log) =>
-                    log.topics[0] ===
-                    factory.interface.getEvent("PoolCreated").topicHash
-            );
-
-            const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
+            const poolAddr = getCreatedPoolAddress(factory, receipt);
 
             expect(await factory.isKnownPool(poolAddr)).to.be.true;
             expect(await factory.getAllPools()).to.include(poolAddr);
@@ -179,12 +171,7 @@ describe("FranchiserPoolFactory", function () {
                         initAmt as bigint
                     );
                 const receipt = await tx.wait();
-                const event = receipt?.logs.find(
-                    (log) =>
-                        log.topics[0] ===
-                        factory.interface.getEvent("PoolCreated").topicHash
-                );
-                const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
+                const poolAddr = getCreatedPoolAddress(factory, receipt);
 
                 expect(await factory.isKnownPool(poolAddr)).to.be.true;
                 expect(await factory.getAllPools()).to.include(poolAddr);
@@ -203,12 +190,7 @@ describe("FranchiserPoolFactory", function () {
                     .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n)
             ).wait();
 
-            const event = receipt?.logs.find(
-                (log) =>
-                    log.topics[0] ===
-                    factory.interface.getEvent("PoolCreated").topicHash
-            );
-            const parsed = factory.interface.parseLog(event as unknown as EventLog);
+            const parsed = parseCreatedPoolLog(factory, receipt);
 
             expect(parsed?.args[1]).to.equal(coordinator.address); // coordinator
             expect(parsed?.args[2]).to.equal(guardian.address);    // guardian
@@ -231,12 +213,7 @@ describe("FranchiserPoolFactory", function () {
                     .connect(governance)
                     .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, AMOUNT)
             ).wait();
-            const event = receipt?.logs.find(
-                (log) =>
-                    log.topics[0] ===
-                    factory.interface.getEvent("PoolCreated").topicHash
-            );
-            const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
+            const poolAddr = getCreatedPoolAddress(factory, receipt);
 
             expect(await token.balanceOf(poolAddr)).to.equal(AMOUNT);
         });
@@ -491,10 +468,7 @@ describe("FranchiserPoolFactory", function () {
                     .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n, [other.address], [1n])
             ).wait();
 
-            const event = receipt?.logs.find(
-                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
-            );
-            const parsed = factory.interface.parseLog(event as unknown as EventLog);
+            const parsed = parseCreatedPoolLog(factory, receipt);
 
             expect(parsed?.args[1]).to.equal(coordinator.address);
             expect(parsed?.args[2]).to.equal(guardian.address);
@@ -534,10 +508,7 @@ describe("FranchiserPoolFactory", function () {
                 .connect(governance)
                 .createPoolAndFund(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, AMOUNT, delegatees, amounts);
             const receipt = await tx.wait();
-            const event = receipt?.logs.find(
-                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
-            );
-            const poolAddr = event ? (factory.interface.parseLog(event)?.args[0] as string) : "";
+            const poolAddr = getCreatedPoolAddress(factory, receipt);
             const pool = await ethers.getContractAt("FranchiserPool", poolAddr);
 
             expect(await token.balanceOf(await pool.getFranchiser(other.address))).to.equal(amount1);
@@ -639,7 +610,7 @@ describe("FranchiserPoolFactory", function () {
             const poolAddr = await pool.getAddress();
 
             // Seed the factory contract itself with tokens (safeTransfer, not safeTransferFrom)
-            await token.mint(factoryAddr, transferAmount);
+            await token.connect(governance).transfer(factoryAddr, transferAmount);
 
             const poolBalanceBefore = await token.balanceOf(poolAddr);
 
@@ -667,7 +638,7 @@ describe("FranchiserPoolFactory", function () {
             const factoryAddr = await factory.getAddress();
             const poolAddr = await pool.getAddress();
 
-            await token.mint(factoryAddr, transferAmount);
+            await token.connect(governance).transfer(factoryAddr, transferAmount);
             await factory.connect(governance).transferToPool(poolAddr, transferAmount);
 
             // Coordinator should be able to delegate the freshly-transferred tokens
@@ -1067,20 +1038,14 @@ describe("FranchiserPoolFactory", function () {
                     .connect(governance)
                     .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n)
             ).wait();
-            const event1 = receipt1?.logs.find(
-                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
-            );
-            const poolAddr1 = event1 ? (factory.interface.parseLog(event1)?.args[0] as string) : "";
+            const poolAddr1 = getCreatedPoolAddress(factory, receipt1);
 
             const receipt2 = await (
                 await factory
                     .connect(governance)
                     .createPool(coordinator.address, guardian.address, 5n, FREEZE_PERIOD, 1n)
             ).wait();
-            const event2 = receipt2?.logs.find(
-                (log) => log.topics[0] === factory.interface.getEvent("PoolCreated").topicHash
-            );
-            const poolAddr2 = event2 ? (factory.interface.parseLog(event2)?.args[0] as string) : "";
+            const poolAddr2 = getCreatedPoolAddress(factory, receipt2);
 
             const pools = await factory.getAllPools();
             expect(pools).to.deep.equal([poolAddr1, poolAddr2]);

@@ -1,29 +1,23 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import {
+    createMainnetConnection,
+    deployFranchiserPoolFactory,
+    FREEZE_PERIOD,
+} from "./helpers.js";
 
-const { ethers, networkHelpers } = await network.create();
-
-const GOVERNANCE_ADDRESS = "0x6d903f6003cca6255D85CcA4D3B5E5146dC33925";
-const FREEZE_PERIOD = 10n * 24n * 60n * 60n; // 10 days
+const connection = await createMainnetConnection();
+const { ethers, networkHelpers } = connection;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 async function deployFixture() {
     const [, coordinator, guardian, delegatee, subDelegatee, other] = await ethers.getSigners();
 
-    await networkHelpers.setBalance(GOVERNANCE_ADDRESS, ethers.parseEther("100"));
-    const governance = await ethers.getImpersonatedSigner(GOVERNANCE_ADDRESS);
-
-    const token = await ethers.deployContract("MockVotingToken");
-    const poolFactory = await ethers.deployContract("FranchiserPoolFactory", [
-        await token.getAddress(),
-    ]);
-
     const AMOUNT = ethers.parseEther("1000");
-    await token.mint(governance.address, AMOUNT * 10n);
-    await token.connect(governance).approve(await poolFactory.getAddress(), ethers.MaxUint256);
+    const { governance, token, franchiserImplementation, poolFactory } =
+        await deployFranchiserPoolFactory(connection, AMOUNT * 10n);
 
-    return { coordinator, guardian, delegatee, subDelegatee, other, token, poolFactory, governance, AMOUNT };
+    return { coordinator, guardian, delegatee, subDelegatee, other, token, poolFactory, franchiserImplementation, governance, AMOUNT };
 }
 
 async function fundedFranchiserFixture() {
@@ -412,7 +406,7 @@ describe("Franchiser", function () {
         });
 
         it("recovers tokens sent out-of-band to an already-unsubdelegated franchiser", async function () {
-            const { franchiser, delegatee, subDelegatee, token } = await networkHelpers.loadFixture(subDelegatedFixture);
+            const { franchiser, delegatee, subDelegatee, token, governance } = await networkHelpers.loadFixture(subDelegatedFixture);
 
             // Remove subDelegatee from the active set (franchiser contract stays deployed)
             await franchiser.connect(delegatee).unSubDelegate(subDelegatee.address);
@@ -421,7 +415,7 @@ describe("Franchiser", function () {
             const outOfBandAmount = ethers.parseEther("100");
 
             // Send tokens directly to the sub-franchiser (out-of-band)
-            await token.mint(subFranchiserAddr, outOfBandAmount);
+            await token.connect(governance).transfer(subFranchiserAddr, outOfBandAmount);
             expect(await token.balanceOf(subFranchiserAddr)).to.equal(outOfBandAmount);
 
             // Second unSubDelegate: not in active set, but contract exists → recovers tokens

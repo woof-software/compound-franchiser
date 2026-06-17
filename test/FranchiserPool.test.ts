@@ -1,32 +1,26 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import {
+    createMainnetConnection,
+    deployFranchiserPoolFactory,
+    getCreatedPoolAddress,
+    FREEZE_PERIOD,
+    MAXIMUM_FREEZE_PERIOD,
+} from "./helpers.js";
 
-const { ethers, networkHelpers } = await network.create();
+const connection = await createMainnetConnection();
+const { ethers, networkHelpers } = connection;
 const { time } = networkHelpers;
-
-const GOVERNANCE_ADDRESS = "0x6d903f6003cca6255D85CcA4D3B5E5146dC33925";
-
-const FREEZE_PERIOD = 10 * 24 * 3600; // 10 days in seconds
-const MAXIMUM_FREEZE_PERIOD = 30 * 24 * 3600; // 30 days in seconds
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 async function deployFixture() {
     const [, coordinator, guardian, delegatee, other] = await ethers.getSigners();
 
-    await networkHelpers.setBalance(GOVERNANCE_ADDRESS, ethers.parseEther("100"));
-    const governance = await ethers.getImpersonatedSigner(GOVERNANCE_ADDRESS);
-
-    const token = await ethers.deployContract("MockVotingToken");
-    const poolFactory = await ethers.deployContract("FranchiserPoolFactory", [
-        await token.getAddress(),
-    ]);
-
     const AMOUNT = ethers.parseEther("10000");
-    await token.mint(governance.address, AMOUNT * 10n);
-    await token.connect(governance).approve(await poolFactory.getAddress(), ethers.MaxUint256);
+    const { governance, token, franchiserImplementation, poolFactory } =
+        await deployFranchiserPoolFactory(connection, AMOUNT * 100n);
 
-    return { governance, coordinator, guardian, delegatee, other, token, poolFactory, AMOUNT };
+    return { governance, coordinator, guardian, delegatee, other, token, poolFactory, franchiserImplementation, AMOUNT };
 }
 
 async function poolFixture() {
@@ -43,14 +37,7 @@ async function poolFixture() {
         AMOUNT
     );
     const receipt = await tx.wait();
-    // Get pool address from the PoolCreated event
-    const poolCreatedEvent = receipt?.logs.find(
-        (log) =>
-            log.topics[0] ===
-            poolFactory.interface.getEvent("PoolCreated").topicHash
-    );
-
-    const poolAddr = poolCreatedEvent ? (poolFactory.interface.parseLog(poolCreatedEvent)?.args[0]) as string : "";
+    const poolAddr = getCreatedPoolAddress(poolFactory, receipt);
     const pool = await ethers.getContractAt("FranchiserPool", poolAddr);
 
     return { ...base, pool, poolAddr, MAX_DELEGATEES };
@@ -286,12 +273,10 @@ describe("FranchiserPool", function () {
                 poolFactory,
                 governance,
                 coordinator,
-                token,
                 AMOUNT
             } = await restore();
 
             // Create a pool with max=1
-            await token.mint(governance.address, AMOUNT);
             const tx = await poolFactory.connect(governance).createPool(
                 coordinator.address,
                 await pool.guardian(),
@@ -301,12 +286,7 @@ describe("FranchiserPool", function () {
             );
 
             const receipt = await tx.wait();
-            const event = receipt?.logs.find(
-                (log) =>
-                    log.topics[0] ===
-                    poolFactory.interface.getEvent("PoolCreated").topicHash
-            );
-            const addr = event ? (poolFactory.interface.parseLog(event)?.args[0]) as string : "";
+            const addr = getCreatedPoolAddress(poolFactory, receipt);
 
             const smallPool = await ethers.getContractAt("FranchiserPool", addr);
 
@@ -646,9 +626,9 @@ describe("FranchiserPool", function () {
         });
 
         it("reverts if delegatees length >= maxDelegatees", async function () {
-            const { pool, guardian, delegatee, MAX_DELEGATEES } = await restoreDelegated();
+            const { pool, guardian, MAX_DELEGATEES } = await restoreDelegated();
 
-            const addrs = Array.from({ length: Number(MAX_DELEGATEES) }, (_, i) =>
+            const addrs = Array.from({ length: Number(MAX_DELEGATEES) }, () =>
                 ethers.Wallet.createRandom().address
             );
 
