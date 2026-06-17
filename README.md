@@ -209,17 +209,19 @@ Edit [`ignition/parameters/FranchiserPoolFactory.json`](ignition/parameters/Fran
 }
 ```
 
-`votingToken` is the only required parameter. Governance is hardcoded in the contract as the Compound timelock (`0x6d903f6003cca6255D85CcA4D3B5E5146dC33925`).
+`votingToken` is the only required parameter. It deploys the `Franchiser` implementation (passing `votingToken` to its constructor), then deploys `FranchiserPoolFactory` with that implementation's address. `votingToken` must match the COMP address hardcoded as the `votingToken` constant in `FranchiserPoolFactory.sol`, since every pool's `Franchiser` clones inherit the implementation's immutable token. Governance is hardcoded in the contract as the Compound timelock (`0x6d903f6003cca6255D85CcA4D3B5E5146dC33925`).
 
 ### Deploy
 
 ```bash
 # Deploy to mainnet
-pnpm deploy
+pnpm run deploy
 
 # Deploy to Sepolia (for testing)
 pnpm deploy:sepolia
 ```
+
+Note: `deploy` (without `run`) is a reserved pnpm CLI command, so it must be run as `pnpm run deploy` — `pnpm deploy` will fail.
 
 Both commands use `--reset`, so each run deploys a fresh contract regardless of any previous deployment state.
 
