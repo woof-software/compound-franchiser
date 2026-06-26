@@ -68,4 +68,9 @@ interface IFranchiserPoolErrors {
     /// @notice Thrown when attempting to set a value to the same value it currently holds.
     /// @param value The value that is the same as the current value.
     error SameValue(uint256 value);
+
+    /// @notice Thrown when attempting to recall delegation from more delegatees than are currently active.
+    /// @param provided The number of delegatees from which delegation is being recalled.
+    /// @param active The current number of active delegatees.
+    error ActiveDelegateesExceeded(uint256 provided, uint256 active);
 }

@@ -189,8 +189,8 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         onlyGuardian
     {
         if (delegatees.length == 0) revert ZeroAmount();
-        if (delegatees.length >= maxDelegatees)
-            revert MaxDelegateesExceeded(delegatees.length, maxDelegatees);
+        if (delegatees.length > _activeDelegatees.length())
+            revert ActiveDelegateesExceeded(delegatees.length, _activeDelegatees.length());
 
         unchecked {
             for (uint256 i; i < delegatees.length; ++i) {
