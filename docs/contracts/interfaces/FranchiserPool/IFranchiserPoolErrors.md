@@ -220,3 +220,19 @@ Parameters:
 | Name  | Type    | Description                                      |
 | :---- | :------ | :----------------------------------------------- |
 | value | uint256 | The value that is the same as the current value. |
+
+### ActiveDelegateesExceeded
+
+```solidity
+error ActiveDelegateesExceeded(uint256 provided, uint256 active)
+```
+
+Thrown when attempting to recall delegation from more delegatees than are currently active.
+
+
+Parameters:
+
+| Name     | Type    | Description                                                        |
+| :------- | :------ | :----------------------------------------------------------------- |
+| provided | uint256 | The number of delegatees from which delegation is being recalled.  |
+| active   | uint256 | The current number of active delegatees.                           |
