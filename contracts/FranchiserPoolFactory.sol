@@ -50,6 +50,7 @@ contract FranchiserPoolFactory is IFranchiserPoolFactoryErrors, IFranchiserPoolF
     /// @param franchiserImplementation_ The address of the Franchiser implementation contract.
     constructor(address franchiserImplementation_) {
         if (franchiserImplementation_ == address(0)) revert ZeroAddress();
+        if (FranchiserPool(franchiserImplementation_).votingToken() != votingToken) revert InvalidImplementation();
 
         franchiserImplementation = franchiserImplementation_;
     }
