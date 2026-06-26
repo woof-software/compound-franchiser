@@ -625,18 +625,22 @@ describe("FranchiserPool", function () {
             ).to.be.revertedWithCustomError(pool, "ZeroAmount");
         });
 
-        it("reverts if delegatees length >= maxDelegatees", async function () {
-            const { pool, guardian, MAX_DELEGATEES } = await restoreDelegated();
+        it("reverts if delegatees length > active delegatees", async function () {
+            const { pool, coordinator, guardian, MAX_DELEGATEES } = await restoreDelegated();
 
-            const addrs = Array.from({ length: Number(MAX_DELEGATEES) }, () =>
+            const addrs = Array.from({ length: Number(MAX_DELEGATEES) + 1 }, () =>
                 ethers.Wallet.createRandom().address
             );
+
+            for (let i = 0; i < MAX_DELEGATEES - 1n; ++i) {
+                await pool.connect(coordinator).delegate(addrs[i], ethers.parseEther("1"));
+            }
 
             await expect(
                 pool.connect(guardian).emergencyRecallDelegates(addrs)
             )
-                .to.be.revertedWithCustomError(pool, "MaxDelegateesExceeded")
-                .withArgs(MAX_DELEGATEES, MAX_DELEGATEES);
+                .to.be.revertedWithCustomError(pool, "ActiveDelegateesExceeded")
+                .withArgs(addrs.length, MAX_DELEGATEES);
         });
 
         it("recalls tokens from specified delegatees back to pool", async function () {

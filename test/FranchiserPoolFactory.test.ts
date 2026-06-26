@@ -76,6 +76,19 @@ describe("FranchiserPoolFactory", function () {
                 ethers.deployContract("FranchiserPoolFactory", [ethers.ZeroAddress])
             ).to.be.revertedWithCustomError(factory, "ZeroAddress");
         });
+
+        it("reverts if franchiserImplementation voting token is different", async function () {
+            const { factory } = await restore();
+
+            const otherToken = await ethers.deployContract("MockVotingToken", []);
+            const otherImpl = await ethers.deployContract("Franchiser", [
+                    await otherToken.getAddress(),
+            ]);
+
+            await expect(
+                ethers.deployContract("FranchiserPoolFactory", [await otherImpl.getAddress()])
+            ).to.be.revertedWithCustomError(factory, "InvalidImplementation");
+        });
     });
 
     describe("createPool", function () {
