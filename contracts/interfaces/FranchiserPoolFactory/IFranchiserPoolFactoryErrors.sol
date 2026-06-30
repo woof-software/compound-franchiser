@@ -35,5 +35,5 @@ interface IFranchiserPoolFactoryErrors {
     error FactoryAsActor(address coordinator, address guardian);
 
     /// @notice Thrown when the provided Franchiser implementation does not match the expected voting token.
-    error InvalidImplementation();
+    error InvalidVotingToken(address implementation, address expectedVotingToken, address actualVotingToken);
 }

@@ -87,7 +87,8 @@ describe("FranchiserPoolFactory", function () {
 
             await expect(
                 ethers.deployContract("FranchiserPoolFactory", [await otherImpl.getAddress()])
-            ).to.be.revertedWithCustomError(factory, "InvalidImplementation");
+            ).to.be.revertedWithCustomError(factory, "InvalidVotingToken")
+                .withArgs(await otherImpl.getAddress(), await factory.votingToken(), await otherToken.getAddress());
         });
     });
 
