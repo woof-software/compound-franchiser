@@ -192,9 +192,11 @@ contract FranchiserPool is IFranchiserPoolErrors, IFranchiserPoolEvents {
         if (delegatees.length > _activeDelegatees.length())
             revert ActiveDelegateesExceeded(delegatees.length, _activeDelegatees.length());
 
-        unchecked {
-            for (uint256 i; i < delegatees.length; ++i) {
-                _recallDelegate(delegatees[i]);
+        for (uint256 i; i < delegatees.length;) {
+            _recallDelegate(delegatees[i]);
+
+            unchecked {
+                ++i;
             }
         }
     }
