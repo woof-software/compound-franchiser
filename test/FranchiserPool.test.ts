@@ -606,6 +606,64 @@ describe("FranchiserPool", function () {
         });
     });
 
+    describe("shared sub-delegatee across multiple top-level delegatees", function () {
+        async function sharedSubDelegateeFixture() {
+            const base = await restoreDelegated();
+            const { pool, coordinator, delegatee, DELEGATE_AMOUNT } = base;
+            const [, , , , , subDelegatee, delegatee2] = await ethers.getSigners();
+
+            const delegateAmount2 = DELEGATE_AMOUNT / 2n;
+            await pool.connect(coordinator).delegate(delegatee2.address, delegateAmount2);
+
+            const franchiserAddr = await pool.getFranchiser(delegatee.address);
+            const franchiser = await ethers.getContractAt("Franchiser", franchiserAddr);
+            const franchiser2Addr = await pool.getFranchiser(delegatee2.address);
+            const franchiser2 = await ethers.getContractAt("Franchiser", franchiser2Addr);
+
+            const subAmount1 = DELEGATE_AMOUNT / 2n;
+            const subAmount2 = delegateAmount2 / 2n;
+
+            await franchiser.connect(delegatee).subDelegate(subDelegatee.address, subAmount1);
+            await franchiser2.connect(delegatee2).subDelegate(subDelegatee.address, subAmount2);
+
+            return { ...base, subDelegatee, delegatee2, franchiser, franchiser2, subAmount1, subAmount2 };
+        }
+
+        it("deploys a distinct sub-franchiser clone per parent franchiser", async function () {
+            const { franchiser, franchiser2, subDelegatee } = await sharedSubDelegateeFixture();
+
+            const subFranchiserAddr1 = await franchiser.getFranchiser(subDelegatee.address);
+            const subFranchiserAddr2 = await franchiser2.getFranchiser(subDelegatee.address);
+
+            expect(subFranchiserAddr1).to.not.equal(subFranchiserAddr2);
+        });
+
+        it("aggregates voting power from both parent franchisers", async function () {
+            const { token, subDelegatee, subAmount1, subAmount2 } = await sharedSubDelegateeFixture();
+
+            expect(await token.getCurrentVotes(subDelegatee.address)).to.equal(subAmount1 + subAmount2);
+        });
+
+        it("recalling one parent delegatee only removes its share of the shared sub-delegatee's votes", async function () {
+            const {
+                pool,
+                coordinator,
+                delegatee,
+                token,
+                franchiser2,
+                subDelegatee,
+                subAmount2
+            } = await sharedSubDelegateeFixture();
+
+            await pool.connect(coordinator).recall(delegatee.address);
+
+            const subFranchiserAddr2 = await franchiser2.getFranchiser(subDelegatee.address);
+
+            expect(await token.getCurrentVotes(subDelegatee.address)).to.equal(subAmount2);
+            expect(await token.balanceOf(subFranchiserAddr2)).to.equal(subAmount2);
+        });
+    });
+
     describe("emergencyRecallDelegates", function () {
         it("reverts if caller is not the guardian", async function () {
             const { pool, other, delegatee } = await restoreDelegated();
@@ -623,20 +681,6 @@ describe("FranchiserPool", function () {
             await expect(
                 pool.connect(guardian).emergencyRecallDelegates([])
             ).to.be.revertedWithCustomError(pool, "ZeroAmount");
-        });
-
-        it("reverts if delegatees length >= maxDelegatees", async function () {
-            const { pool, guardian, MAX_DELEGATEES } = await restoreDelegated();
-
-            const addrs = Array.from({ length: Number(MAX_DELEGATEES) }, () =>
-                ethers.Wallet.createRandom().address
-            );
-
-            await expect(
-                pool.connect(guardian).emergencyRecallDelegates(addrs)
-            )
-                .to.be.revertedWithCustomError(pool, "MaxDelegateesExceeded")
-                .withArgs(MAX_DELEGATEES, MAX_DELEGATEES);
         });
 
         it("recalls tokens from specified delegatees back to pool", async function () {

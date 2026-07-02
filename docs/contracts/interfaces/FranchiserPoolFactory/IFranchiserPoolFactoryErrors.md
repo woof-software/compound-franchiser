@@ -101,3 +101,11 @@ Parameters:
 | :---------- | :------ | :--------------------------------- |
 | coordinator | address | The provided coordinator address.  |
 | guardian    | address | The provided guardian address.     |
+
+### InvalidVotingToken
+
+```solidity
+error InvalidVotingToken(address implementation, address expectedVotingToken, address actualVotingToken)
+```
+
+Thrown when the provided Franchiser implementation does not match the expected voting token.
